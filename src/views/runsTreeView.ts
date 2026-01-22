@@ -77,7 +77,11 @@ export class RunTreeItem extends vscode.TreeItem {
             return 'run-completed';
         }
 
-        if (resultStr === 'failed' || resultStr === 'partiallysucceeded') {
+        if (resultStr === 'partiallysucceeded') {
+            return 'run-partially-succeeded';
+        }
+
+        if (resultStr === 'failed') {
             return 'run-failed';
         }
 

@@ -59,7 +59,14 @@ export class RunDetailsPanel {
             }
         );
 
-        new RunDetailsPanel(panel, client, run);
+        // Fetch the latest run data to ensure we have accurate status
+        try {
+            const freshRun = await client.getRun(run.id);
+            new RunDetailsPanel(panel, client, freshRun);
+        } catch (error) {
+            console.error('Failed to fetch run details, using cached data:', error);
+            new RunDetailsPanel(panel, client, run);
+        }
     }
 
     private startAutoRefresh() {
@@ -349,7 +356,7 @@ export class RunDetailsPanel {
     <div class="actions">
         <button onclick="refresh()">🔄 Refresh</button>
         ${isRunning ? '<button onclick="cancel()">⏹️ Cancel</button>' : ''}
-        ${this.run.result === 'failed' ? '<button onclick="retry()">🔁 Retry</button>' : ''}
+        ${this.run.result === 'failed' || this.run.result === 'partiallySucceeded' ? '<button onclick="retry()">🔁 Retry</button>' : ''}
         <button class="secondary" onclick="openInBrowser()">🌐 Open in Browser</button>
     </div>
 
