@@ -1,0 +1,344 @@
+{
+  "name": "azure-devops-pipelines",
+  "displayName": "Azure DevOps Pipelines",
+  "description": "Complete Azure DevOps Pipeline management directly from VSCode",
+  "version": "0.1.0",
+  "publisher": "your-publisher-name",
+  "icon": "resources/icons/extension-icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Azure",
+    "Other"
+  ],
+  "keywords": [
+    "azure",
+    "devops",
+    "pipelines",
+    "ci/cd",
+    "build"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "azure-pipelines-container",
+          "title": "Azure Pipelines",
+          "icon": "resources/azure-devops.svg"
+        }
+      ]
+    },
+    "views": {
+      "azure-pipelines-container": [
+        {
+          "id": "azurePipelines",
+          "name": "Pipelines",
+          "contextualTitle": "Azure DevOps Pipelines",
+          "when": "azurePipelines.signedIn"
+        },
+        {
+          "id": "azurePipelinesRuns",
+          "name": "Recent Runs",
+          "contextualTitle": "Pipeline Runs",
+          "when": "azurePipelines.signedIn"
+        },
+        {
+          "id": "azurePipelinesServiceConnections",
+          "name": "Service Connections",
+          "contextualTitle": "Service Connections",
+          "when": "azurePipelines.signedIn"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "azurePipelines",
+        "contents": "Welcome to Azure DevOps Pipelines!\n\nTo get started, sign in with your Microsoft account.\n\n[Sign In](command:azurePipelines.signIn)\n\nNo Personal Access Token (PAT) required - we use OAuth authentication."
+      }
+    ],
+    "commands": [
+      {
+        "command": "azurePipelines.signIn",
+        "title": "Sign In to Azure DevOps",
+        "category": "Azure Pipelines",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "azurePipelines.signOut",
+        "title": "Sign Out",
+        "category": "Azure Pipelines",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "azurePipelines.selectOrganization",
+        "title": "Select Organization/Project",
+        "category": "Azure Pipelines",
+        "icon": "$(organization)"
+      },
+      {
+        "command": "azurePipelines.refreshPipelines",
+        "title": "Refresh Pipelines",
+        "category": "Azure Pipelines",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "azurePipelines.refreshRuns",
+        "title": "Refresh Runs",
+        "category": "Azure Pipelines",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "azurePipelines.runPipeline",
+        "title": "Run Pipeline",
+        "category": "Azure Pipelines",
+        "icon": "$(play)"
+      },
+      {
+        "command": "azurePipelines.viewPipelineRuns",
+        "title": "View Pipeline Runs",
+        "category": "Azure Pipelines",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "azurePipelines.cancelRun",
+        "title": "Cancel Run",
+        "category": "Azure Pipelines",
+        "icon": "$(stop)"
+      },
+      {
+        "command": "azurePipelines.retryRun",
+        "title": "Retry Run",
+        "category": "Azure Pipelines",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "azurePipelines.viewRunDetails",
+        "title": "View Run Details",
+        "category": "Azure Pipelines",
+        "icon": "$(info)"
+      },
+      {
+        "command": "azurePipelines.viewRunLogs",
+        "title": "View Run Logs",
+        "category": "Azure Pipelines",
+        "icon": "$(output)"
+      },
+      {
+        "command": "azurePipelines.openRunInBrowser",
+        "title": "Open in Browser",
+        "category": "Azure Pipelines",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "azurePipelines.downloadArtifacts",
+        "title": "Download Artifacts",
+        "category": "Azure Pipelines",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "azurePipelines.filterRuns",
+        "title": "Filter Runs",
+        "category": "Azure Pipelines",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "azurePipelines.refreshServiceConnections",
+        "title": "Refresh Service Connections",
+        "category": "Azure Pipelines",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "azurePipelines.createServiceConnection",
+        "title": "Create Service Connection",
+        "category": "Azure Pipelines",
+        "icon": "$(add)"
+      },
+      {
+        "command": "azurePipelines.editServiceConnection",
+        "title": "Edit Service Connection",
+        "category": "Azure Pipelines"
+      },
+      {
+        "command": "azurePipelines.deleteServiceConnection",
+        "title": "Delete Service Connection",
+        "category": "Azure Pipelines"
+      },
+      {
+        "command": "azurePipelines.viewServiceConnectionDetails",
+        "title": "View Details",
+        "category": "Azure Pipelines",
+        "icon": "$(info)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "azurePipelines.refreshPipelines",
+          "when": "view == azurePipelines",
+          "group": "navigation"
+        },
+        {
+          "command": "azurePipelines.refreshRuns",
+          "when": "view == azurePipelinesRuns",
+          "group": "navigation@1"
+        },
+        {
+          "command": "azurePipelines.filterRuns",
+          "when": "view == azurePipelinesRuns",
+          "group": "navigation@2"
+        },
+        {
+          "command": "azurePipelines.selectOrganization",
+          "when": "view == azurePipelines && azurePipelines.signedIn",
+          "group": "navigation"
+        },
+        {
+          "command": "azurePipelines.refreshServiceConnections",
+          "when": "view == azurePipelinesServiceConnections",
+          "group": "navigation@1"
+        },
+        {
+          "command": "azurePipelines.createServiceConnection",
+          "when": "view == azurePipelinesServiceConnections",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "azurePipelines.runPipeline",
+          "when": "view == azurePipelines && viewItem == pipeline",
+          "group": "inline"
+        },
+        {
+          "command": "azurePipelines.viewPipelineRuns",
+          "when": "view == azurePipelines && viewItem == pipeline",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "azurePipelines.runPipeline",
+          "when": "view == azurePipelines && viewItem == pipeline",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "azurePipelines.cancelRun",
+          "when": "view == azurePipelinesRuns && viewItem == run-running",
+          "group": "inline"
+        },
+        {
+          "command": "azurePipelines.viewRunDetails",
+          "when": "view == azurePipelinesRuns && viewItem =~ /^run/",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "azurePipelines.viewRunLogs",
+          "when": "view == azurePipelinesRuns && viewItem =~ /^run/",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "azurePipelines.retryRun",
+          "when": "view == azurePipelinesRuns && viewItem == run-failed",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "azurePipelines.cancelRun",
+          "when": "view == azurePipelinesRuns && viewItem == run-running",
+          "group": "2_actions@2"
+        },
+        {
+          "command": "azurePipelines.downloadArtifacts",
+          "when": "view == azurePipelinesRuns && viewItem == run-completed",
+          "group": "3_other@1"
+        },
+        {
+          "command": "azurePipelines.openRunInBrowser",
+          "when": "view == azurePipelinesRuns && viewItem =~ /^run/",
+          "group": "3_other@2"
+        },
+        {
+          "command": "azurePipelines.viewServiceConnectionDetails",
+          "when": "view == azurePipelinesServiceConnections && viewItem == serviceConnection",
+          "group": "inline"
+        },
+        {
+          "command": "azurePipelines.editServiceConnection",
+          "when": "view == azurePipelinesServiceConnections && viewItem == serviceConnection",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "azurePipelines.deleteServiceConnection",
+          "when": "view == azurePipelinesServiceConnections && viewItem == serviceConnection",
+          "group": "1_actions@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "azurePipelines.signIn",
+          "when": "!azurePipelines.signedIn"
+        },
+        {
+          "command": "azurePipelines.signOut",
+          "when": "azurePipelines.signedIn"
+        },
+        {
+          "command": "azurePipelines.selectOrganization",
+          "when": "azurePipelines.signedIn"
+        },
+        {
+          "command": "azurePipelines.refreshPipelines",
+          "when": "azurePipelines.signedIn"
+        },
+        {
+          "command": "azurePipelines.refreshRuns",
+          "when": "azurePipelines.signedIn"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Azure DevOps Pipelines",
+      "properties": {
+        "azurePipelines.autoRefreshInterval": {
+          "type": "number",
+          "default": 30,
+          "description": "Auto-refresh interval for pipeline runs (in seconds). Set to 0 to disable."
+        },
+        "azurePipelines.maxRunsToShow": {
+          "type": "number",
+          "default": 50,
+          "description": "Maximum number of recent runs to display"
+        },
+        "azurePipelines.showNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show notifications for pipeline events"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "@vscode/test-electron": "^2.3.9",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3",
+    "@vscode/vsce": "^2.22.0"
+  }
+}
