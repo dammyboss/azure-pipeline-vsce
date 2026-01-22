@@ -337,6 +337,139 @@ export class RunDetailsPanel {
         .issue-type { font-weight: 600; margin-right: 8px; }
         .error { color: #dc3545; }
         .warning-text { color: #ffa500; }
+        
+        /* Stages & Jobs Tile Styles */
+        .stages-jobs-section {
+            margin: 20px 0;
+            padding: 16px;
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 6px;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            margin-bottom: 16px;
+        }
+        .tab {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--vscode-descriptionForeground);
+            border-bottom: 2px solid transparent;
+        }
+        .tab.active {
+            color: var(--vscode-foreground);
+            border-bottom-color: var(--vscode-focusBorder);
+        }
+        .tab:hover {
+            background: var(--vscode-list-hoverBackground);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .stage-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+        .stage-card {
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 6px;
+            padding: 16px;
+            background: var(--vscode-editor-background);
+        }
+        .stage-card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .stage-card-title {
+            font-weight: 600;
+            font-size: 16px;
+            flex: 1;
+        }
+        .stage-card-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+        .stage-card-duration {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 12px;
+        }
+        .scanning-card {
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px dashed var(--vscode-panel-border);
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+        .scanning-card-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .scanning-card-icon {
+            color: #007acc;
+        }
+        .scanning-card-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            font-size: 12px;
+        }
+        .scanning-stat {
+            text-align: center;
+        }
+        .scanning-stat-value {
+            font-weight: 600;
+            font-size: 18px;
+        }
+        .scanning-stat-label {
+            color: var(--vscode-descriptionForeground);
+            font-size: 11px;
+        }
+        .jobs-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .job-item {
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 6px;
+            padding: 12px;
+            background: var(--vscode-editor-background);
+        }
+        .job-item-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .job-item-name {
+            font-weight: 600;
+            flex: 1;
+        }
+        .job-item-duration {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+        }
+        .job-item-tasks {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -399,6 +532,22 @@ export class RunDetailsPanel {
     </div>
 
     ${hasTimeline ? `
+    <div class="stages-jobs-section">
+        <h3 style="margin: 0 0 16px 0;">Stage & Job Details</h3>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('stages')">Stages</div>
+            <div class="tab" onclick="switchTab('jobs')">Jobs</div>
+        </div>
+        <div class="tab-content active" id="stages-tab">
+            ${this.renderStagesTab(stages)}
+        </div>
+        <div class="tab-content" id="jobs-tab">
+            ${this.renderJobsTab(stages)}
+        </div>
+    </div>
+    ` : ''}
+
+    ${hasTimeline ? `
     <div class="timeline">
         <h3 style="margin-bottom: 15px;">Timeline</h3>
         ${stages.map(stage => this.renderStage(stage)).join('')}
@@ -432,6 +581,26 @@ export class RunDetailsPanel {
         
         function toggleStage(element) {
             element.closest('.stage').classList.toggle('expanded');
+        }
+        
+        function switchTab(tabName) {
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Activate selected tab
+            const tabs = document.querySelectorAll('.tab');
+            for (let i = 0; i < tabs.length; i++) {
+                if (tabs[i].getAttribute('onclick') === "switchTab('" + tabName + "')") {
+                    tabs[i].classList.add('active');
+                    break;
+                }
+            }
+            document.getElementById(tabName + '-tab')?.classList.add('active');
         }
         
         // Auto-expand first stage
@@ -505,6 +674,147 @@ export class RunDetailsPanel {
                 <span style="flex: 1;">${task.name}</span>
                 <span class="stage-duration">${duration}</span>
                 ${task.log ? `<span class="log-link" onclick="viewLog(${task.log.id})">📄 Log</span>` : ''}
+            </div>
+        `;
+    }
+
+    private renderStagesTab(stages: any[]): string {
+        if (stages.length === 0) {
+            return '<p>No stage information available.</p>';
+        }
+
+        return `
+            <div class="stage-cards">
+                ${stages.map(stage => this.renderStageCard(stage)).join('')}
+            </div>
+        `;
+    }
+
+    private renderStageCard(stage: any): string {
+        const status = stage.result || stage.state;
+        const statusColor = this.getStatusColor(status);
+        const icon = this.getStatusIcon(status);
+        const duration = stage.startTime && stage.finishTime
+            ? this.formatDuration(new Date(stage.startTime), new Date(stage.finishTime))
+            : 'In progress...';
+
+        // Mock scanning data - in a real implementation, this would come from API
+        const hasScanning = stage.name.toLowerCase().includes('build') || stage.name.toLowerCase().includes('test');
+        
+        return `
+            <div class="stage-card">
+                <div class="stage-card-header">
+                    <div class="stage-icon ${icon}">${this.getIconSymbol(status)}</div>
+                    <div class="stage-card-title">${stage.name}</div>
+                    <div class="stage-card-status" style="background: ${statusColor}">
+                        ${status}
+                    </div>
+                </div>
+                <div class="stage-card-duration">Duration: ${duration}</div>
+                
+                ${hasScanning ? this.renderScanningCard() : ''}
+                
+                ${stage.jobs && stage.jobs.length > 0 ? `
+                    <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 12px;">
+                        Jobs: ${stage.jobs.length}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    private renderScanningCard(): string {
+        // Mock scanning data - in a real implementation, this would come from security scanning API
+        return `
+            <div class="scanning-card">
+                <div class="scanning-card-title">
+                    <span class="scanning-card-icon">🔍</span>
+                    Source Code Scanning
+                </div>
+                <div class="scanning-card-stats">
+                    <div class="scanning-stat">
+                        <div class="scanning-stat-value">0</div>
+                        <div class="scanning-stat-label">Critical</div>
+                    </div>
+                    <div class="scanning-stat">
+                        <div class="scanning-stat-value">2</div>
+                        <div class="scanning-stat-label">High</div>
+                    </div>
+                    <div class="scanning-stat">
+                        <div class="scanning-stat-value">5</div>
+                        <div class="scanning-stat-label">Medium</div>
+                    </div>
+                </div>
+                <div style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 8px;">
+                    Last scanned: Just now
+                </div>
+            </div>
+        `;
+    }
+
+    private renderJobsTab(stages: any[]): string {
+        if (stages.length === 0) {
+            return '<p>No job information available.</p>';
+        }
+
+        // Flatten all jobs from all stages
+        const allJobs: any[] = [];
+        stages.forEach(stage => {
+            if (stage.jobs && stage.jobs.length > 0) {
+                stage.jobs.forEach((job: any) => {
+                    allJobs.push({ ...job, stageName: stage.name });
+                });
+            }
+        });
+
+        if (allJobs.length === 0) {
+            return '<p>No job information available.</p>';
+        }
+
+        return `
+            <div class="jobs-list">
+                ${allJobs.map(job => this.renderJobItem(job)).join('')}
+            </div>
+        `;
+    }
+
+    private renderJobItem(job: any): string {
+        const status = job.result || job.state;
+        const statusColor = this.getStatusColor(status);
+        const icon = this.getStatusIcon(status);
+        const duration = job.startTime && job.finishTime
+            ? this.formatDuration(new Date(job.startTime), new Date(job.finishTime))
+            : 'In progress...';
+
+        const taskCount = job.tasks ? job.tasks.length : 0;
+
+        return `
+            <div class="job-item">
+                <div class="job-item-header">
+                    <div class="stage-icon ${icon}" style="width: 16px; height: 16px; font-size: 10px;">
+                        ${this.getIconSymbol(status)}
+                    </div>
+                    <div class="job-item-name">${job.name}</div>
+                    <div class="stage-card-status" style="background: ${statusColor}; font-size: 10px; padding: 2px 6px;">
+                        ${status}
+                    </div>
+                </div>
+                <div class="job-item-duration">
+                    <div>Stage: ${job.stageName}</div>
+                    <div>Duration: ${duration}</div>
+                </div>
+                ${taskCount > 0 ? `
+                    <div class="job-item-tasks">
+                        Tasks: ${taskCount}
+                    </div>
+                ` : ''}
+                ${job.log ? `
+                    <div style="margin-top: 8px;">
+                        <span class="log-link" onclick="viewLog(${job.log.id})" style="font-size: 11px;">
+                            📄 View Log
+                        </span>
+                    </div>
+                ` : ''}
             </div>
         `;
     }
