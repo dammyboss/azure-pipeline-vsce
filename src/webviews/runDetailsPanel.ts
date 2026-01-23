@@ -46,7 +46,10 @@ export class RunDetailsPanel {
                         await this.downloadLogs();
                         break;
                     case 'editPipeline':
-                        vscode.env.openExternal(vscode.Uri.parse(this.run.url.replace('/_build/results', '/_build/definition')));
+                        await this.editPipelineYaml();
+                        break;
+                    case 'viewYaml':
+                        await this.viewFullYaml();
                         break;
                     case 'loadTests':
                         await this.loadTestResults();
@@ -222,6 +225,51 @@ export class RunDetailsPanel {
                 testRuns: [],
                 error: String(error)
             });
+        }
+    }
+
+    private async editPipelineYaml() {
+        try {
+            const pipelineId = this.run.pipeline?.id || this.run.definition?.id;
+            if (!pipelineId) {
+                vscode.window.showErrorMessage('Pipeline ID not found');
+                return;
+            }
+
+            const yaml = await this.client.getPipelineYaml(pipelineId);
+
+            // Open in VSCode editor with YAML language support for full IntelliSense
+            const doc = await vscode.workspace.openTextDocument({
+                content: yaml,
+                language: 'yaml'
+            });
+            await vscode.window.showTextDocument(doc, {
+                preview: false,
+                viewColumn: vscode.ViewColumn.Beside
+            });
+
+            vscode.window.showInformationMessage('Note: This is a read-only view of the pipeline YAML from the repository.');
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to load pipeline YAML: ${error}`);
+        }
+    }
+
+    private async viewFullYaml() {
+        try {
+            // Log ID 1 typically contains the expanded YAML for the pipeline run
+            const expandedYaml = await this.client.getLogContent(this.run.id, 1);
+
+            // Open in VSCode editor
+            const doc = await vscode.workspace.openTextDocument({
+                content: expandedYaml,
+                language: 'yaml'
+            });
+            await vscode.window.showTextDocument(doc, {
+                preview: false,
+                viewColumn: vscode.ViewColumn.Beside
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to load full YAML: ${error}`);
         }
     }
 
@@ -835,6 +883,8 @@ export class RunDetailsPanel {
                     <div class="dropdown-item" onclick="downloadLogs()">Download logs</div>
                     <div class="dropdown-divider"></div>
                     <div class="dropdown-item" onclick="editPipeline()">Edit pipeline</div>
+                    <div class="dropdown-item" onclick="viewYaml()">View full YAML</div>
+                    <div class="dropdown-divider"></div>
                     <div class="dropdown-item" onclick="openInBrowser()">Open in browser</div>
                 </div>
             </div>
@@ -966,6 +1016,11 @@ export class RunDetailsPanel {
 
         function editPipeline() {
             vscode.postMessage({ command: 'editPipeline' });
+            closeMenu();
+        }
+
+        function viewYaml() {
+            vscode.postMessage({ command: 'viewYaml' });
             closeMenu();
         }
 

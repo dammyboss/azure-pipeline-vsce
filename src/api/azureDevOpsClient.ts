@@ -508,6 +508,46 @@ export class AzureDevOpsClient {
         }
     }
 
+    /**
+     * Get pipeline YAML definition
+     */
+    async getPipelineYaml(pipelineId: number): Promise<string> {
+        try {
+            const response = await this.axiosInstance.get(
+                `${this.organizationUrl}/${this.projectName}/_apis/pipelines/${pipelineId}`,
+                { params: { 'api-version': '7.1' } }
+            );
+
+            if (response.data.configuration?.path) {
+                const repoId = response.data.configuration.repository?.id;
+                const path = response.data.configuration.path;
+                const branch = response.data.configuration.repository?.ref || 'refs/heads/main';
+
+                try {
+                    const fileResponse = await this.axiosInstance.get(
+                        `${this.organizationUrl}/${this.projectName}/_apis/git/repositories/${repoId}/items`,
+                        {
+                            params: {
+                                'path': path,
+                                'versionDescriptor.version': branch.replace('refs/heads/', ''),
+                                'versionDescriptor.versionType': 'branch',
+                                'api-version': '7.1'
+                            },
+                            responseType: 'text'
+                        }
+                    );
+                    return fileResponse.data;
+                } catch (fileError) {
+                    console.warn('Could not fetch YAML file:', fileError);
+                }
+            }
+
+            return `# Pipeline: ${response.data.name}\n# ID: ${response.data.id}\n# Path: ${response.data.configuration?.path || 'N/A'}\n\n# Full pipeline definition not available`;
+        } catch (error) {
+            throw new Error(`Failed to get pipeline YAML: ${error}`);
+        }
+    }
+
     // ==================== Artifacts ====================
 
     /**
