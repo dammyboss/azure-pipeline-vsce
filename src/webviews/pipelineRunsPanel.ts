@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { Pipeline, PipelineRun, Timeline } from '../models/types';
+import { formatTimeAgo, formatDurationBetween } from '../utils/formatDuration';
 
 interface PipelineRunFilter {
     searchText?: string;
@@ -172,42 +173,14 @@ export class PipelineRunsPanel {
         if (!date) {
             return '-';
         }
-        const now = new Date();
-        const diff = now.getTime() - new Date(date).getTime();
-        const seconds = Math.floor(diff / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-
-        if (days > 0) {
-            return `${days}d ago`;
-        } else if (hours > 0) {
-            return `${hours}h ago`;
-        } else if (minutes > 0) {
-            return `${minutes}m ago`;
-        } else {
-            return `${seconds}s ago`;
-        }
+        return formatTimeAgo(date);
     }
 
     private formatDuration(startTime: Date | string, finishTime?: Date | string): string {
         if (!finishTime) {
             return '-';
         }
-        const start = new Date(startTime).getTime();
-        const finish = new Date(finishTime).getTime();
-        const diff = finish - start;
-        const seconds = Math.floor(diff / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-
-        if (hours > 0) {
-            return `${hours}h ${minutes % 60}m`;
-        } else if (minutes > 0) {
-            return `${minutes}m ${seconds % 60}s`;
-        } else {
-            return `${seconds}s`;
-        }
+        return formatDurationBetween(startTime, finishTime);
     }
 
     private getRunStatusIcon(run: PipelineRun): string {

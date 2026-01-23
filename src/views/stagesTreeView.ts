@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { PipelineRun, Timeline, TimelineRecord } from '../models/types';
+import { formatDurationBetween } from '../utils/formatDuration';
 
 /**
  * Tree item for stages view
@@ -50,30 +51,10 @@ export class StageTreeItem extends vscode.TreeItem {
     private buildDescription(): string {
         // Show duration if available
         if (this.record.startTime && this.record.finishTime) {
-            const start = new Date(this.record.startTime).getTime();
-            const finish = new Date(this.record.finishTime).getTime();
-            const diff = finish - start;
-            const duration = this.formatDuration(diff);
-            return duration;
+            return formatDurationBetween(this.record.startTime, this.record.finishTime);
         }
 
         return '';
-    }
-
-    private formatDuration(milliseconds: number): string {
-        const seconds = Math.floor(milliseconds / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-
-        if (hours > 0) {
-            return `${hours}h ${minutes % 60}m`;
-        } else if (minutes > 0) {
-            return `${minutes}m ${seconds % 60}s`;
-        } else if (seconds < 1) {
-            return '<1s';
-        } else {
-            return `${seconds}s`;
-        }
     }
 
     private getContextValue(): string {
