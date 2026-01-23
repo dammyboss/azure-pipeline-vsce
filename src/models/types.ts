@@ -233,6 +233,7 @@ export interface TimelineRecord {
     parentId?: string;
     type: string;
     name: string;
+    order?: number;
     startTime?: Date;
     finishTime?: Date;
     currentOperation?: string;

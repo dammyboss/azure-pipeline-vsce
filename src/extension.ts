@@ -4,6 +4,7 @@ import { AzureDevOpsClient } from './api/azureDevOpsClient';
 import { ConfigManager } from './utils/configManager';
 import { PipelinesTreeProvider } from './views/pipelinesTreeView';
 import { RunsTreeProvider } from './views/runsTreeView';
+import { StagesTreeProvider } from './views/stagesTreeView';
 import { ServiceConnectionsTreeProvider } from './views/serviceConnectionsTreeView';
 import { PipelineCommands } from './commands/pipelineCommands';
 import { ServiceConnectionCommands } from './commands/serviceConnectionCommands';
@@ -13,6 +14,7 @@ let client: AzureDevOpsClient;
 let configManager: ConfigManager;
 let pipelinesProvider: PipelinesTreeProvider;
 let runsProvider: RunsTreeProvider;
+let stagesProvider: StagesTreeProvider;
 let serviceConnectionsProvider: ServiceConnectionsTreeProvider;
 let statusBarItem: vscode.StatusBarItem;
 
@@ -35,6 +37,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Initialize tree providers
     pipelinesProvider = new PipelinesTreeProvider(client);
     runsProvider = new RunsTreeProvider(client);
+    stagesProvider = new StagesTreeProvider(client);
     serviceConnectionsProvider = new ServiceConnectionsTreeProvider(client);
 
     // Register tree views
@@ -48,6 +51,11 @@ export async function activate(context: vscode.ExtensionContext) {
         showCollapseAll: true
     });
 
+    const stagesTreeView = vscode.window.createTreeView('azurePipelinesStages', {
+        treeDataProvider: stagesProvider,
+        showCollapseAll: true
+    });
+
     const serviceConnectionsTreeView = vscode.window.createTreeView('azurePipelinesServiceConnections', {
         treeDataProvider: serviceConnectionsProvider,
         showCollapseAll: true
@@ -56,7 +64,7 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(pipelinesTreeView, runsTreeView, serviceConnectionsTreeView);
 
     // Initialize commands
-    const pipelineCommands = new PipelineCommands(client, pipelinesProvider, runsProvider);
+    const pipelineCommands = new PipelineCommands(client, pipelinesProvider, runsProvider, stagesProvider);
     pipelineCommands.register(context);
 
     const serviceConnectionCommands = new ServiceConnectionCommands(client, serviceConnectionsProvider);
@@ -101,11 +109,15 @@ export async function activate(context: vscode.ExtensionContext) {
         updateStatusBar();
     }
 
-    // Set up auto-refresh for runs and pipelines (every 30 seconds)
+    // Set up auto-refresh for runs, pipelines, and stages (every 30 seconds)
     const refreshInterval = setInterval(() => {
         if (configManager.isConfigured()) {
             runsProvider.refresh();
-            pipelinesTreeProvider.refresh();
+            pipelinesProvider.refresh();
+            // Only refresh stages if there's a current run loaded
+            if (stagesProvider.getCurrentRun()) {
+                stagesProvider.refresh();
+            }
         }
     }, 30000);
 

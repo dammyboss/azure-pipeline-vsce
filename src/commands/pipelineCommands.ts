@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
-import { Pipeline, PipelineRun } from '../models/types';
+import { Pipeline, PipelineRun, TimelineRecord } from '../models/types';
 import { RunsTreeProvider } from '../views/runsTreeView';
 import { PipelinesTreeProvider } from '../views/pipelinesTreeView';
+import { StagesTreeProvider } from '../views/stagesTreeView';
 import { RunDetailsPanel } from '../webviews/runDetailsPanel';
 import { LiveLogPanel } from '../webviews/liveLogPanel';
 import { RunPipelineModal } from '../webviews/runPipelineModal';
@@ -16,7 +17,8 @@ export class PipelineCommands {
     constructor(
         private client: AzureDevOpsClient,
         private pipelinesProvider: PipelinesTreeProvider,
-        private runsProvider: RunsTreeProvider
+        private runsProvider: RunsTreeProvider,
+        private stagesProvider: StagesTreeProvider
     ) {}
 
     /**
@@ -74,6 +76,12 @@ export class PipelineCommands {
             ),
             vscode.commands.registerCommand('azurePipelines.editPipeline', (pipeline: Pipeline) =>
                 this.editPipeline(pipeline)
+            ),
+            vscode.commands.registerCommand('azurePipelines.refreshStages', () =>
+                this.refreshStages()
+            ),
+            vscode.commands.registerCommand('azurePipelines.viewStageLog', (item: { record: TimelineRecord; run?: PipelineRun }) =>
+                this.viewStageLog(item.record, item.run)
             )
         );
     }
@@ -211,6 +219,8 @@ export class PipelineCommands {
      */
     private async viewRunDetails(run: PipelineRun): Promise<void> {
         await RunDetailsPanel.show(this.client, run);
+        // Also load stages in the stages tree view
+        await this.stagesProvider.loadStages(run);
     }
 
     /**
@@ -683,6 +693,64 @@ export class PipelineCommands {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to edit pipeline: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * Refresh stages view
+     */
+    private refreshStages(): void {
+        this.stagesProvider.refresh();
+    }
+
+    /**
+     * View stage log in VS Code editor
+     */
+    private async viewStageLog(record: TimelineRecord, run?: PipelineRun): Promise<void> {
+        try {
+            if (!record.log?.url) {
+                vscode.window.showInformationMessage('Log URL is not available for this stage');
+                return;
+            }
+
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Loading log for ${record.name}`,
+                    cancellable: false
+                },
+                async () => {
+                    // Fetch log content directly from the URL
+                    const logContent = await this.client.axiosInstance.get(record.log!.url, {
+                        responseType: 'text'
+                    });
+
+                    // Format log content - remove timestamps if they exist
+                    const formattedLog = typeof logContent.data === 'string'
+                        ? logContent.data
+                              .split('\n')
+                              .map(line => {
+                                  // Remove timestamp prefix like "2024-01-23T14:30:45.123Z "
+                                  return line.length > 29 && line[29] === ' ' ? line.slice(30) : line;
+                              })
+                              .join('\n')
+                        : logContent.data;
+
+                    // Open in text document
+                    const document = await vscode.workspace.openTextDocument({
+                        content: formattedLog,
+                        language: 'log'
+                    });
+
+                    await vscode.window.showTextDocument(document, {
+                        preview: false,
+                        viewColumn: vscode.ViewColumn.Beside
+                    });
+                }
+            );
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to load stage log: ${errorMessage}`);
         }
     }
 }

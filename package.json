@@ -48,6 +48,12 @@
           "when": "azurePipelines.signedIn"
         },
         {
+          "id": "azurePipelinesStages",
+          "name": "Stages",
+          "contextualTitle": "Pipeline Stages",
+          "when": "azurePipelines.signedIn"
+        },
+        {
           "id": "azurePipelinesServiceConnections",
           "name": "Service Connections",
           "contextualTitle": "Service Connections",
@@ -91,6 +97,18 @@
         "title": "Refresh Runs",
         "category": "Azure Pipelines",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "azurePipelines.refreshStages",
+        "title": "Refresh Stages",
+        "category": "Azure Pipelines",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "azurePipelines.viewStageLog",
+        "title": "View Stage Log",
+        "category": "Azure Pipelines",
+        "icon": "$(output)"
       },
       {
         "command": "azurePipelines.runPipeline",
@@ -239,6 +257,11 @@
           "group": "navigation@2"
         },
         {
+          "command": "azurePipelines.refreshStages",
+          "when": "view == azurePipelinesStages",
+          "group": "navigation@1"
+        },
+        {
           "command": "azurePipelines.selectOrganization",
           "when": "view == azurePipelines && azurePipelines.signedIn",
           "group": "navigation"
@@ -314,6 +337,16 @@
           "command": "azurePipelines.openRunInBrowser",
           "when": "view == azurePipelinesRuns && viewItem =~ /^run/",
           "group": "3_other@2"
+        },
+        {
+          "command": "azurePipelines.viewStageLog",
+          "when": "view == azurePipelinesStages && viewItem =~ /^(stage|job|task)$/",
+          "group": "inline"
+        },
+        {
+          "command": "azurePipelines.viewStageLog",
+          "when": "view == azurePipelinesStages && viewItem =~ /^(stage|job|task)$/",
+          "group": "1_actions@1"
         },
         {
           "command": "azurePipelines.viewServiceConnectionDetails",
