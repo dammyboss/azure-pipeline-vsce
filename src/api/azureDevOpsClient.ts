@@ -576,9 +576,14 @@ export class AzureDevOpsClient {
                                 'path': path,
                                 'versionDescriptor.version': branch.replace('refs/heads/', ''),
                                 'versionDescriptor.versionType': 'branch',
-                                'api-version': '7.1'
+                                'api-version': '7.1',
+                                'includeContent': true,
+                                '$format': 'text'
                             },
-                            responseType: 'text'
+                            responseType: 'text',
+                            headers: {
+                                'Accept': 'text/plain'
+                            }
                         }
                     );
                     return fileResponse.data;
@@ -844,12 +849,15 @@ export class AzureDevOpsClient {
                 params: {
                     'api-version': '7.1-preview.1',
                     path,
-                    versionDescriptor: {
-                        version: branch,
-                        versionType: 'branch'
-                    }
+                    'versionDescriptor.version': branch,
+                    'versionDescriptor.versionType': 'branch',
+                    'includeContent': true,
+                    '$format': 'text'
                 },
-                responseType: 'text'
+                responseType: 'text',
+                headers: {
+                    'Accept': 'text/plain'
+                }
             }
         );
         return response.data;

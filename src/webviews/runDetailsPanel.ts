@@ -199,30 +199,48 @@ export class RunDetailsPanel {
         try {
             const yaml = await this.client.getPipelineYaml(pipelineId);
 
+            console.log('Fetching stages from YAML...');
+            console.log('YAML length:', yaml.length);
+            console.log('First 500 chars of YAML:', yaml.substring(0, 500));
+
             // Extract stages with their dependencies
             const stages: Array<{ name: string; dependsOn?: string[] }> = [];
             const lines = yaml.split('\n');
 
             let currentStage: { name: string; dependsOn?: string[] } | null = null;
             let inDependsOn = false;
+            let inStagesSection = false;
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
 
-                // Match stage definition
-                const stageMatch = line.match(/^[-\s]*stage:\s*(.+)$/);
+                // Check if we're entering the stages section
+                if (line.match(/^stages:\s*$/)) {
+                    inStagesSection = true;
+                    console.log('Found stages: section at line', i);
+                    continue;
+                }
+
+                // Only look for stage definitions if we're in the stages section
+                // OR if there's no explicit stages: keyword (single-stage pipelines might not have it)
+
+                // Match stage definition: - stage: StageName or -stage:StageName
+                // More flexible regex that handles various whitespace scenarios
+                const stageMatch = line.match(/^\s*-\s*stage:\s*(.+)$/i);
                 if (stageMatch) {
                     if (currentStage) {
                         stages.push(currentStage);
                     }
+                    const stageName = stageMatch[1].trim().replace(/['"]/g, '').replace(/#.*$/, '').trim();
                     currentStage = {
-                        name: stageMatch[1].trim().replace(/['"]/g, '')
+                        name: stageName
                     };
                     inDependsOn = false;
+                    console.log('Found stage:', stageName, 'at line', i);
                     continue;
                 }
 
-                // Match dependsOn (single line)
+                // Match dependsOn (single line): dependsOn: value or dependsOn:[value]
                 if (currentStage && line.match(/^\s*dependsOn:\s*(.+)$/)) {
                     const dependsMatch = line.match(/^\s*dependsOn:\s*(.+)$/);
                     if (dependsMatch) {
@@ -235,9 +253,11 @@ export class RunDetailsPanel {
                                 .map(d => d.trim().replace(/['"]/g, ''))
                                 .filter(d => d.length > 0);
                             currentStage.dependsOn = deps;
-                        } else {
+                            console.log('Found dependsOn (array):', deps);
+                        } else if (depValue.toLowerCase() !== 'null' && depValue !== '[]') {
                             // Single value: dependsOn: stage1
                             currentStage.dependsOn = [depValue.replace(/['"]/g, '')];
+                            console.log('Found dependsOn (single):', depValue);
                         }
                         inDependsOn = false;
                     }
@@ -248,6 +268,7 @@ export class RunDetailsPanel {
                 if (currentStage && line.match(/^\s*dependsOn:\s*$/)) {
                     inDependsOn = true;
                     currentStage.dependsOn = [];
+                    console.log('Found dependsOn (multi-line) at line', i);
                     continue;
                 }
 
@@ -260,6 +281,7 @@ export class RunDetailsPanel {
                             currentStage.dependsOn = [];
                         }
                         currentStage.dependsOn.push(dep);
+                        console.log('Added dependsOn item:', dep);
                     }
                     continue;
                 }
@@ -275,8 +297,12 @@ export class RunDetailsPanel {
                 stages.push(currentStage);
             }
 
+            console.log('Total stages found:', stages.length);
+            console.log('Stages:', stages);
+
             return stages;
         } catch (error) {
+            console.error('Error fetching stages:', error);
             return [];
         }
     }
