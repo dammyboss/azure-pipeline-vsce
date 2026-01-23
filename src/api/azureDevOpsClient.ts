@@ -204,11 +204,27 @@ export class AzureDevOpsClient {
      * Get all projects in an organization
      */
     async getProjects(organizationUrl: string): Promise<Project[]> {
-        // Ensure the URL is properly formatted
-        const cleanUrl = organizationUrl.replace(/\/+$/, ''); // Remove trailing slashes
-        const projectsUrl = `${cleanUrl}/_apis/projects`;
+        console.log('[Azure DevOps] getProjects called with organizationUrl:', organizationUrl);
 
-        console.log('[Azure DevOps] Getting projects from:', projectsUrl);
+        // Validate and clean the URL
+        if (!organizationUrl || typeof organizationUrl !== 'string') {
+            throw new Error(`Invalid organization URL: ${organizationUrl}`);
+        }
+
+        // Remove trailing slashes
+        let cleanUrl = organizationUrl.trim().replace(/\/+$/, '');
+
+        // Ensure we're using dev.azure.com format
+        // The accountUri from the API might be in various formats
+        if (!cleanUrl.includes('dev.azure.com') && !cleanUrl.includes('visualstudio.com')) {
+            // If it's just a name, construct the full URL
+            cleanUrl = `https://dev.azure.com/${cleanUrl}`;
+        }
+
+        console.log('[Azure DevOps] Cleaned URL:', cleanUrl);
+
+        const projectsUrl = `${cleanUrl}/_apis/projects`;
+        console.log('[Azure DevOps] Projects API URL:', projectsUrl);
 
         try {
             const response = await this.axiosInstance.get(
@@ -216,12 +232,24 @@ export class AzureDevOpsClient {
                 { params: { 'api-version': '7.1' } }
             );
 
-            console.log('[Azure DevOps] Projects response:', response.data);
+            console.log('[Azure DevOps] Projects response status:', response.status);
+            console.log('[Azure DevOps] Projects count:', response.data?.count);
+
             return response.data.value || [];
         } catch (error: any) {
-            console.error('[Azure DevOps] Failed to get projects:', error.message);
-            console.error('[Azure DevOps] Error response:', error.response?.data);
-            throw error;
+            console.error('[Azure DevOps] Failed to get projects from:', projectsUrl);
+            console.error('[Azure DevOps] Error message:', error.message);
+            console.error('[Azure DevOps] Error response status:', error.response?.status);
+            console.error('[Azure DevOps] Error response data:', error.response?.data);
+
+            // Provide a more helpful error message
+            if (error.response?.status === 401) {
+                throw new Error(`Authentication failed. Your access token may have expired.`);
+            } else if (error.response?.status === 404) {
+                throw new Error(`Organization not found. Please verify the organization name.`);
+            } else {
+                throw new Error(`Failed to access organization: ${error.message}`);
+            }
         }
     }
 

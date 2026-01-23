@@ -123,6 +123,12 @@ export class ConfigManager {
             const selectedOrgUrl = selectedOrg.org.accountUri;
             const selectedOrgName = selectedOrg.org.accountName;
 
+            console.log('[Config] Selected organization:', {
+                name: selectedOrgName,
+                url: selectedOrgUrl,
+                rawOrg: selectedOrg.org
+            });
+
             // Verify organization by trying to get projects
             let projects: Project[];
             try {
@@ -133,6 +139,7 @@ export class ConfigManager {
                         cancellable: false
                     },
                     async () => {
+                        console.log('[Config] Calling getProjects with URL:', selectedOrgUrl);
                         return await this.client.getProjects(selectedOrgUrl);
                     }
                 );
