@@ -39,12 +39,6 @@ export class PipelineRunsPanel {
                     case 'refresh':
                         await this.updateContent();
                         break;
-                    case 'runPipeline':
-                        await this.handleRunPipeline();
-                        break;
-                    case 'submitRunPipeline':
-                        await this.handleSubmitRunPipeline(message.data);
-                        break;
                     case 'updateFilter':
                         this.currentFilter = message.filter;
                         await this.updateContent();
@@ -103,118 +97,6 @@ export class PipelineRunsPanel {
             }
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to open run details: ${error}`);
-        }
-    }
-
-    private async handleRunPipeline() {
-        try {
-            // Fetch required data for the modal
-            const [branches, variables, stages] = await Promise.all([
-                this.fetchBranches(),
-                this.fetchVariables(),
-                this.fetchStages()
-            ]);
-
-            // Send data to show the modal
-            this.panel.webview.postMessage({
-                command: 'showRunPipelineModal',
-                data: {
-                    branches,
-                    variables,
-                    stages,
-                    defaultBranch: branches[0] || 'main'
-                }
-            });
-        } catch (error) {
-            vscode.window.showErrorMessage(`Failed to load run pipeline form: ${error}`);
-        }
-    }
-
-    private async fetchBranches(): Promise<string[]> {
-        try {
-            if (!this.pipeline.repository?.id) {
-                return ['main', 'master', 'develop'];
-            }
-            const branches = await this.client.getBranches(this.pipeline.repository.id);
-            return branches.map(b => b.name.replace('refs/heads/', ''));
-        } catch (error) {
-            return ['main', 'master', 'develop'];
-        }
-    }
-
-    private async fetchVariables(): Promise<Record<string, any>> {
-        try {
-            return await this.client.getPipelineVariables(this.pipeline.id);
-        } catch (error) {
-            return {};
-        }
-    }
-
-    private async fetchStages(): Promise<Array<{ name: string; dependsOn?: string[] }>> {
-        try {
-            const yaml = await this.client.getPipelineYaml(this.pipeline.id);
-            const stages: Array<{ name: string; dependsOn?: string[] }> = [];
-            const lines = yaml.split('\n');
-
-            let currentStage: { name: string; dependsOn?: string[] } | null = null;
-
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const stageMatch = line.match(/^\s*-\s*stage:\s*(.+)$/i);
-                if (stageMatch) {
-                    if (currentStage) {
-                        stages.push(currentStage);
-                    }
-                    const stageName = stageMatch[1].trim().replace(/['"]/g, '').replace(/#.*$/, '').trim();
-                    currentStage = { name: stageName };
-                }
-            }
-
-            if (currentStage) {
-                stages.push(currentStage);
-            }
-
-            return stages;
-        } catch (error) {
-            return [];
-        }
-    }
-
-    private async handleSubmitRunPipeline(data: any) {
-        try {
-            const options: any = {
-                sourceBranch: data.branch ? `refs/heads/${data.branch}` : undefined
-            };
-
-            if (data.variables && Object.keys(data.variables).length > 0) {
-                options.variables = data.variables;
-            }
-
-            if (data.stagesToRun && data.stagesToRun.length > 0) {
-                const allStages = data.allStages || [];
-                const stagesToSkip = allStages.filter((s: string) => !data.stagesToRun.includes(s));
-                if (stagesToSkip.length > 0) {
-                    options.stagesToSkip = stagesToSkip;
-                }
-            }
-
-            const newRun = await this.client.runPipeline(this.pipeline.id, options);
-
-            // Hide the modal and refresh
-            this.panel.webview.postMessage({ command: 'hideRunModal' });
-            await this.updateContent();
-
-            // Show success message
-            const viewRun = await vscode.window.showInformationMessage(
-                `Pipeline run started: ${newRun.buildNumber || newRun.name}`,
-                'View Run'
-            );
-
-            if (viewRun === 'View Run') {
-                vscode.commands.executeCommand('azurePipelines.viewRunDetails', newRun);
-            }
-        } catch (error) {
-            vscode.window.showErrorMessage(`Failed to run pipeline: ${error}`);
         }
     }
 
@@ -636,154 +518,6 @@ export class PipelineRunsPanel {
         .empty-state-subtext {
             font-size: 13px;
         }
-
-        /* Modal Styles */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.6);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-
-        .modal-container {
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 6px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 90vh;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-        }
-
-        .modal-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--vscode-editor-inactiveSelectionBackground);
-        }
-
-        .modal-header h2 {
-            margin: 0;
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        .modal-close-btn {
-            background: none;
-            border: none;
-            color: var(--vscode-foreground);
-            font-size: 24px;
-            cursor: pointer;
-            padding: 0;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-            opacity: 0.7;
-        }
-
-        .modal-close-btn:hover {
-            opacity: 1;
-            background: var(--vscode-toolbar-hoverBackground);
-        }
-
-        .modal-body {
-            padding: 24px;
-            overflow-y: auto;
-            flex: 1;
-        }
-
-        .modal-footer {
-            padding: 16px 24px;
-            border-top: 1px solid var(--vscode-panel-border);
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-        }
-
-        .modal-section {
-            margin-bottom: 20px;
-        }
-
-        .modal-label {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .modal-input, .modal-select {
-            width: 100%;
-            padding: 8px 12px;
-            background: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 4px;
-            font-size: 13px;
-            font-family: var(--vscode-font-family);
-        }
-
-        .modal-input:focus, .modal-select:focus {
-            outline: 1px solid var(--vscode-focusBorder);
-        }
-
-        .modal-checkbox-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .modal-checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            padding: 6px;
-            border-radius: 4px;
-        }
-
-        .modal-checkbox-label:hover {
-            background: var(--vscode-list-hoverBackground);
-        }
-
-        .modal-button {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .modal-button.primary {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-        }
-
-        .modal-button.primary:hover {
-            background: var(--vscode-button-hoverBackground);
-        }
-
-        .modal-button.secondary {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-        }
-
-        .modal-button.secondary:hover {
-            background: var(--vscode-button-secondaryHoverBackground);
-        }
     </style>
 </head>
 <body>
@@ -791,7 +525,6 @@ export class PipelineRunsPanel {
         <div class="header-title">${this.escapeHtml(this.pipeline.name)}</div>
         <div class="header-actions">
             <button class="btn btn-secondary" onclick="refresh()">Refresh</button>
-            <button class="btn" onclick="runPipeline()">Run pipeline</button>
         </div>
     </div>
 
@@ -980,23 +713,9 @@ export class PipelineRunsPanel {
         </div>
     `}
 
-    <!-- Run Pipeline Modal -->
-    <div id="runPipelineModal" class="modal-overlay" style="display: none;">
-        <div class="modal-container">
-            <div class="modal-header">
-                <h2>Run Pipeline</h2>
-                <button class="modal-close-btn" onclick="closeRunPipelineModal()">×</button>
-            </div>
-            <div class="modal-body" id="modalBody">
-                <p>Loading...</p>
-            </div>
-        </div>
-    </div>
-
     <script>
         const vscode = acquireVsCodeApi();
         let currentFilter = ${JSON.stringify(this.currentFilter)};
-        let modalData = null;
 
         function openRun(runId) {
             vscode.postMessage({ command: 'openRun', runId });
@@ -1004,10 +723,6 @@ export class PipelineRunsPanel {
 
         function refresh() {
             vscode.postMessage({ command: 'refresh' });
-        }
-
-        function runPipeline() {
-            vscode.postMessage({ command: 'runPipeline' });
         }
 
         function toggleDropdown(dropdownId) {
@@ -1075,108 +790,6 @@ export class PipelineRunsPanel {
         function applyFilter() {
             vscode.postMessage({ command: 'updateFilter', filter: currentFilter });
         }
-
-        // Run Pipeline Modal Functions
-        function closeRunPipelineModal() {
-            document.getElementById('runPipelineModal').style.display = 'none';
-        }
-
-        function showRunPipelineModal(data) {
-            modalData = data;
-            const modalBody = document.getElementById('modalBody');
-
-            // Build modal content
-            const html = \`
-                <div class="modal-section">
-                    <label class="modal-label">Branch</label>
-                    <select id="branchSelect" class="modal-select">
-                        \${data.branches.map(b => \`
-                            <option value="\${b}" \${b === data.defaultBranch ? 'selected' : ''}>\${b}</option>
-                        \`).join('')}
-                    </select>
-                </div>
-
-                \${Object.keys(data.variables).length > 0 ? \`
-                    <div class="modal-section">
-                        <label class="modal-label">Variables</label>
-                        \${Object.keys(data.variables).map(key => \`
-                            <div style="margin-bottom: 12px;">
-                                <label style="font-size: 12px; color: var(--vscode-descriptionForeground);">\${key}</label>
-                                <input type="text" class="modal-input variable-input" data-key="\${key}" value="\${data.variables[key] || ''}" />
-                            </div>
-                        \`).join('')}
-                    </div>
-                \` : ''}
-
-                \${data.stages.length > 0 ? \`
-                    <div class="modal-section">
-                        <label class="modal-label">Stages to Run</label>
-                        <div class="modal-checkbox-group">
-                            \${data.stages.map(stage => \`
-                                <label class="modal-checkbox-label">
-                                    <input type="checkbox" class="stage-checkbox" value="\${stage.name}" checked />
-                                    <span>\${stage.name}</span>
-                                </label>
-                            \`).join('')}
-                        </div>
-                    </div>
-                \` : ''}
-
-                <div class="modal-footer">
-                    <button class="modal-button secondary" onclick="closeRunPipelineModal()">Cancel</button>
-                    <button class="modal-button primary" onclick="submitRunPipeline()">Run Pipeline</button>
-                </div>
-            \`;
-
-            modalBody.innerHTML = html;
-            document.getElementById('runPipelineModal').style.display = 'flex';
-        }
-
-        function submitRunPipeline() {
-            const branch = document.getElementById('branchSelect').value;
-
-            // Collect variables
-            const variables = {};
-            document.querySelectorAll('.variable-input').forEach(input => {
-                const key = input.getAttribute('data-key');
-                variables[key] = input.value;
-            });
-
-            // Collect selected stages
-            const stagesToRun = [];
-            document.querySelectorAll('.stage-checkbox:checked').forEach(checkbox => {
-                stagesToRun.push(checkbox.value);
-            });
-
-            vscode.postMessage({
-                command: 'submitRunPipeline',
-                data: {
-                    branch,
-                    variables,
-                    stagesToRun,
-                    allStages: modalData.stages.map(s => s.name)
-                }
-            });
-
-            closeRunPipelineModal();
-        }
-
-        // Listen for messages from extension
-        window.addEventListener('message', event => {
-            const message = event.data;
-            switch (message.command) {
-                case 'showRunPipelineModal':
-                    showRunPipelineModal(message.data);
-                    break;
-            }
-        });
-
-        // Close modal on Escape key
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeRunPipelineModal();
-            }
-        });
     </script>
 </body>
 </html>`;
