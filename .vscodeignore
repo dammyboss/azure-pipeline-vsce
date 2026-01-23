@@ -6,5 +6,8 @@ src/**
 **/*.map
 **/*.ts
 tsconfig.json
-node_modules/**
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/*.md
 *.md
+README.md
