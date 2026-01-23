@@ -9,7 +9,6 @@ interface PipelineRunFilter {
     branch?: string;
     requestedFor?: string;
     repository?: string;
-    tags?: string;
 }
 
 /**
@@ -240,19 +239,28 @@ export class PipelineRunsPanel {
             }
         }
 
-        // Filter by tags
-        if (this.currentFilter.tags) {
-            // Tags filtering - would need tags property on run
-            // For now, just skip if no tags on run
-            return false;
-        }
-
         return true;
     }
 
     private getHtmlContent(runsWithTimelines: Array<{ run: PipelineRun; timeline: Timeline | null }>): string {
         // Apply filters
         const filteredRuns = runsWithTimelines.filter(({ run }) => this.matchesFilter(run));
+
+        // Extract unique values for filter dropdowns
+        const uniqueBranches = [...new Set(runsWithTimelines
+            .map(({ run }) => run.sourceBranch?.replace('refs/heads/', '') || '')
+            .filter(b => b)
+        )].sort();
+
+        const uniqueUsers = [...new Set(runsWithTimelines
+            .map(({ run }) => run.requestedFor?.displayName || run.requestedBy?.displayName || '')
+            .filter(u => u)
+        )].sort();
+
+        const uniqueRepositories = [...new Set(runsWithTimelines
+            .map(({ run }) => run.repository?.name || '')
+            .filter(r => r)
+        )].sort();
 
         return `<!DOCTYPE html>
 <html>
@@ -571,13 +579,11 @@ export class PipelineRunsPanel {
                 Branch <span>▼</span>
             </button>
             <div class="filter-dropdown-content">
-                <input
-                    type="text"
-                    style="width: calc(100% - 24px); margin: 8px 12px; padding: 6px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; font-size: 12px;"
-                    placeholder="Branch name"
-                    value="${this.escapeHtml(this.currentFilter.branch || '')}"
-                    oninput="updateBranchFilter(this.value)"
-                />
+                ${uniqueBranches.length > 0 ? uniqueBranches.map(branch => `
+                    <div class="filter-option" onclick="updateBranchFilter('${this.escapeHtml(branch)}'); toggleDropdown('branchDropdown');">
+                        <span>${this.escapeHtml(branch)}</span>
+                    </div>
+                `).join('') : '<div class="filter-option" style="opacity: 0.6;">No branches available</div>'}
             </div>
         </div>
 
@@ -586,13 +592,11 @@ export class PipelineRunsPanel {
                 Requested for <span>▼</span>
             </button>
             <div class="filter-dropdown-content">
-                <input
-                    type="text"
-                    style="width: calc(100% - 24px); margin: 8px 12px; padding: 6px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; font-size: 12px;"
-                    placeholder="User name"
-                    value="${this.escapeHtml(this.currentFilter.requestedFor || '')}"
-                    oninput="updateRequestedForFilter(this.value)"
-                />
+                ${uniqueUsers.length > 0 ? uniqueUsers.map(user => `
+                    <div class="filter-option" onclick="updateRequestedForFilter('${this.escapeHtml(user)}'); toggleDropdown('requestedForDropdown');">
+                        <span>${this.escapeHtml(user)}</span>
+                    </div>
+                `).join('') : '<div class="filter-option" style="opacity: 0.6;">No users available</div>'}
             </div>
         </div>
 
@@ -601,32 +605,15 @@ export class PipelineRunsPanel {
                 Repository <span>▼</span>
             </button>
             <div class="filter-dropdown-content">
-                <input
-                    type="text"
-                    style="width: calc(100% - 24px); margin: 8px 12px; padding: 6px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; font-size: 12px;"
-                    placeholder="Repository name"
-                    value="${this.escapeHtml(this.currentFilter.repository || '')}"
-                    oninput="updateRepositoryFilter(this.value)"
-                />
+                ${uniqueRepositories.length > 0 ? uniqueRepositories.map(repo => `
+                    <div class="filter-option" onclick="updateRepositoryFilter('${this.escapeHtml(repo)}'); toggleDropdown('repositoryDropdown');">
+                        <span>${this.escapeHtml(repo)}</span>
+                    </div>
+                `).join('') : '<div class="filter-option" style="opacity: 0.6;">No repositories available</div>'}
             </div>
         </div>
 
-        <div class="filter-dropdown" id="tagsDropdown">
-            <button class="filter-dropdown-btn ${this.currentFilter.tags ? 'active' : ''}" onclick="toggleDropdown('tagsDropdown')">
-                Tags <span>▼</span>
-            </button>
-            <div class="filter-dropdown-content">
-                <input
-                    type="text"
-                    style="width: calc(100% - 24px); margin: 8px 12px; padding: 6px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; font-size: 12px;"
-                    placeholder="Tag name"
-                    value="${this.escapeHtml(this.currentFilter.tags || '')}"
-                    oninput="updateTagsFilter(this.value)"
-                />
-            </div>
-        </div>
-
-        ${(this.currentFilter.searchText || this.currentFilter.state || this.currentFilter.branch || this.currentFilter.requestedFor || this.currentFilter.repository || this.currentFilter.tags) ? `
+        ${(this.currentFilter.searchText || this.currentFilter.state || this.currentFilter.branch || this.currentFilter.requestedFor || this.currentFilter.repository) ? `
             <button class="filter-clear-btn" onclick="clearAllFilters()">✕ Clear</button>
         ` : ''}
     </div>
@@ -774,11 +761,6 @@ export class PipelineRunsPanel {
 
         function updateRepositoryFilter(value) {
             currentFilter.repository = value || undefined;
-            applyFilter();
-        }
-
-        function updateTagsFilter(value) {
-            currentFilter.tags = value || undefined;
             applyFilter();
         }
 
