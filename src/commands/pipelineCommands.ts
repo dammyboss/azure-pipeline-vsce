@@ -277,8 +277,15 @@ export class PipelineCommands {
      * Open run in browser
      */
     private openRunInBrowser(run: PipelineRun): void {
+        if (!run) {
+            vscode.window.showErrorMessage('Run information not available');
+            return;
+        }
+
         if (run.url) {
             vscode.env.openExternal(vscode.Uri.parse(run.url));
+        } else {
+            vscode.window.showErrorMessage('Run URL not available');
         }
     }
 
@@ -777,11 +784,20 @@ export class PipelineCommands {
             }
 
             const config = this.client.getConfig();
-            const orgName = config.organizationName;
+            const organizationUrl = config.organizationUrl;
             const projectName = config.projectName;
 
-            if (!orgName || !projectName) {
+            if (!organizationUrl || !projectName) {
                 vscode.window.showErrorMessage('Organization or project not configured');
+                return;
+            }
+
+            // Extract organization name from URL
+            // URL format: https://dev.azure.com/organizationName
+            const orgName = organizationUrl.split('/').filter(Boolean).pop();
+
+            if (!orgName) {
+                vscode.window.showErrorMessage('Could not extract organization name from URL');
                 return;
             }
 
