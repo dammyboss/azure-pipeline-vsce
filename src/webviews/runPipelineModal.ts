@@ -7,6 +7,7 @@ import { Pipeline } from '../models/types';
  * Shows only the modal overlay without a full panel behind it
  */
 export class RunPipelineModal {
+    private static currentPanel: RunPipelineModal | undefined;
     private panel: vscode.WebviewPanel;
     private disposables: vscode.Disposable[] = [];
 
@@ -42,17 +43,30 @@ export class RunPipelineModal {
         pipeline: Pipeline,
         sourceBranch?: string
     ): Promise<void> {
+        const column = vscode.window.activeTextEditor?.viewColumn || vscode.ViewColumn.One;
+
+        // If we already have a panel, reuse it
+        if (RunPipelineModal.currentPanel) {
+            RunPipelineModal.currentPanel.panel.reveal(column);
+            RunPipelineModal.currentPanel.pipeline = pipeline;
+            RunPipelineModal.currentPanel.sourceBranch = sourceBranch;
+            RunPipelineModal.currentPanel.client = client;
+            await RunPipelineModal.currentPanel.initialize();
+            return;
+        }
+
+        // Create new panel
         const panel = vscode.window.createWebviewPanel(
             'runPipelineModal',
             'Run Pipeline',
-            vscode.ViewColumn.One,
+            column,
             {
                 enableScripts: true,
                 retainContextWhenHidden: false
             }
         );
 
-        new RunPipelineModal(panel, client, pipeline, sourceBranch);
+        RunPipelineModal.currentPanel = new RunPipelineModal(panel, client, pipeline, sourceBranch);
     }
 
     private async initialize() {
@@ -753,6 +767,8 @@ export class RunPipelineModal {
     }
 
     public dispose() {
+        RunPipelineModal.currentPanel = undefined;
+
         while (this.disposables.length) {
             const disposable = this.disposables.pop();
             if (disposable) {

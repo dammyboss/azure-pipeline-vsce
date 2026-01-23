@@ -117,11 +117,12 @@ export class PipelineRunsPanel {
 
             // Send data to show the modal
             this.panel.webview.postMessage({
-                command: 'showRunModal',
+                command: 'showRunPipelineModal',
                 data: {
                     branches,
                     variables,
-                    stages
+                    stages,
+                    defaultBranch: branches[0] || 'main'
                 }
             });
         } catch (error) {
