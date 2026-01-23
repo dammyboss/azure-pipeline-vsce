@@ -343,17 +343,23 @@ export class AzureDevOpsClient {
      * Get all runs for a pipeline
      */
     async getPipelineRuns(pipelineId?: number, top: number = 50): Promise<PipelineRun[]> {
-        const url = pipelineId
-            ? `${this.organizationUrl}/${this.projectName}/_apis/pipelines/${pipelineId}/runs`
-            : `${this.organizationUrl}/${this.projectName}/_apis/build/builds`;
+        // Use the Build API instead of Pipelines API for more complete data
+        // (includes requestedBy, requestedFor, repository, sourceBranch, etc.)
+        const params: any = {
+            'api-version': '7.1',
+            '$top': top
+        };
 
-        const response = await this.axiosInstance.get(url, {
-            params: {
-                'api-version': '7.1-preview.1',
-                '$top': top
-            }
-        });
-        
+        // If pipelineId is provided, filter by definition ID
+        if (pipelineId) {
+            params.definitions = pipelineId;
+        }
+
+        const response = await this.axiosInstance.get(
+            `${this.organizationUrl}/${this.projectName}/_apis/build/builds`,
+            { params }
+        );
+
         console.log('getPipelineRuns response:', JSON.stringify(response.data, null, 2));
         return response.data.value || [];
     }

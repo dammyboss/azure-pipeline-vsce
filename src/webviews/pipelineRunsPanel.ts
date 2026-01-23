@@ -650,7 +650,7 @@ export class PipelineRunsPanel {
             <thead>
                 <tr>
                     <th>Description</th>
-                    <th style="width: 200px;">Stages</th>
+                    <th style="width: 280px; padding-left: 40px;">Stages</th>
                     <th style="width: 120px; text-align: right;">Time</th>
                 </tr>
             </thead>
@@ -666,7 +666,19 @@ export class PipelineRunsPanel {
                     const duration = startTimeValue && finishTimeValue
                         ? this.formatDuration(startTimeValue, finishTimeValue)
                         : (startTimeValue && !finishTimeValue ? 'In progress' : '-');
-                    const triggeredBy = run.requestedBy?.displayName || run.requestedFor?.displayName || 'System';
+
+                    // Get the user who triggered the run - check multiple possible fields
+                    const triggeredBy = run.requestedBy?.displayName ||
+                                       run.requestedFor?.displayName ||
+                                       (run as any).requestedBy?.name ||
+                                       (run as any).requestedFor?.name ||
+                                       'Unknown';
+
+                    // Get branch information
+                    const branch = run.sourceBranch?.replace('refs/heads/', '') || '';
+
+                    // Get repository information
+                    const repository = run.repository?.name || this.pipeline.repository?.name || '';
 
                     return `
                         <tr class="run-row" onclick="openRun(${run.id})">
@@ -679,13 +691,13 @@ export class PipelineRunsPanel {
                                         <div class="run-trigger">
                                             <span>Manually run by</span>
                                             <span style="font-weight: 500;">${this.escapeHtml(triggeredBy)}</span>
-                                            <span>•</span>
-                                            <span>${this.escapeHtml(run.sourceBranch?.replace('refs/heads/', '') || 'main')}</span>
+                                            ${repository ? `<span>•</span><span>${this.escapeHtml(repository)}</span>` : ''}
+                                            ${branch ? `<span>•</span><span>${this.escapeHtml(branch)}</span>` : ''}
                                         </div>
                                     </div>
                                 </div>
                             </td>
-                            <td>
+                            <td style="padding-left: 40px;">
                                 <div class="stages">
                                     ${stages.length > 0
                                         ? stages.map(stage => `<div class="stage-icon" title="${this.escapeHtml(stage.name)}: ${this.escapeHtml(stage.result)}">${this.getStatusIcon(stage.result)}</div>`).join('')
