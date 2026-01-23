@@ -61,7 +61,7 @@ export async function activate(context: vscode.ExtensionContext) {
         showCollapseAll: true
     });
 
-    context.subscriptions.push(pipelinesTreeView, runsTreeView, serviceConnectionsTreeView);
+    context.subscriptions.push(pipelinesTreeView, runsTreeView, stagesTreeView, serviceConnectionsTreeView);
 
     // Initialize commands
     const pipelineCommands = new PipelineCommands(client, pipelinesProvider, runsProvider, stagesProvider);
