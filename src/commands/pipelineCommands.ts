@@ -5,6 +5,7 @@ import { RunsTreeProvider } from '../views/runsTreeView';
 import { PipelinesTreeProvider } from '../views/pipelinesTreeView';
 import { RunDetailsPanel } from '../webviews/runDetailsPanel';
 import { LiveLogPanel } from '../webviews/liveLogPanel';
+import { RunPipelinePanel } from '../webviews/runPipelinePanel';
 
 /**
  * Pipeline command handlers
@@ -76,76 +77,47 @@ export class PipelineCommands {
     }
 
     /**
-     * Run a pipeline
+     * Run a pipeline - shows full run form
      */
-    private async runPipeline(pipeline: Pipeline): Promise<void> {
+    private async runPipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
         try {
+            // Extract pipeline from TreeItem if needed
+            const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
+
             // Validate pipeline ID
             if (!pipeline || !pipeline.id) {
                 vscode.window.showErrorMessage('Pipeline ID is missing. Please refresh the pipelines view and try again.');
                 return;
             }
 
-            // Get repositories to find branches
-            const repos = await this.client.getRepositories();
-            const repo = repos.find(r => r.id === pipeline.repository?.id);
-
-            let branch: string | undefined;
-
-            if (repo) {
-                // Get branches
-                const branches = await this.client.getBranches(repo.id);
-
-                const branchItems = branches.map(b => ({
-                    label: b.name,
-                    description: b.objectId.substring(0, 7)
-                }));
-
-                const selectedBranch = await vscode.window.showQuickPick(branchItems, {
-                    placeHolder: 'Select a branch to run',
-                    ignoreFocusOut: true
-                });
-
-                if (!selectedBranch) {
-                    return;
+            // Get the default branch from the pipeline's repository
+            let sourceBranch: string | undefined;
+            if (pipeline.repository?.id) {
+                try {
+                    const repos = await this.client.getRepositories();
+                    const repo = repos.find(r => r.id === pipeline.repository?.id);
+                    sourceBranch = repo?.defaultBranch;
+                } catch (error) {
+                    console.log('Could not get default branch:', error);
                 }
-
-                branch = selectedBranch.label;
             }
 
-            // Show progress
-            await vscode.window.withProgress(
-                {
-                    location: vscode.ProgressLocation.Notification,
-                    title: `Running pipeline: ${pipeline.name}`,
-                    cancellable: false
-                },
-                async () => {
-                    const run = await this.client.runPipeline(pipeline.id, { branch });
+            // Show the run pipeline panel with form
+            await RunPipelinePanel.show(this.client, pipeline, sourceBranch);
 
-                    vscode.window.showInformationMessage(
-                        `Pipeline run started: ${run.buildNumber}`,
-                        'View Run'
-                    ).then(selection => {
-                        if (selection === 'View Run') {
-                            this.viewRunDetails(run);
-                        }
-                    });
-
-                    // Refresh runs view
-                    this.runsProvider.refresh();
-                }
-            );
+            // Refresh runs view after panel is shown
+            setTimeout(() => this.runsProvider.refresh(), 1000);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            vscode.window.showErrorMessage(`Failed to run pipeline: ${errorMessage}`);
+            vscode.window.showErrorMessage(`Failed to open run pipeline form: ${errorMessage}`);
         }
     }
 
     /**
      * View runs for a specific pipeline
      */
-    private viewPipelineRuns(pipeline: Pipeline): void {
+    private viewPipelineRuns(pipelineOrTreeItem: Pipeline | any): void {
+        const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
         this.runsProvider.setFilter(pipeline.id);
         vscode.commands.executeCommand('azurePipelinesRuns.focus');
     }
@@ -340,8 +312,9 @@ export class PipelineCommands {
     /**
      * Open pipeline in browser
      */
-    private async openPipelineInBrowser(pipeline: Pipeline): Promise<void> {
+    private async openPipelineInBrowser(pipelineOrTreeItem: Pipeline | any): Promise<void> {
         try {
+            const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
             const config = this.client.getConfig();
             const pipelineUrl = `${config.organizationUrl}/${config.projectName}/_build?definitionId=${pipeline.id}`;
             vscode.env.openExternal(vscode.Uri.parse(pipelineUrl));
@@ -593,8 +566,10 @@ export class PipelineCommands {
     /**
      * Rename/move pipeline
      */
-    private async renamePipeline(pipeline: Pipeline): Promise<void> {
+    private async renamePipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
         try {
+            const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
+
             if (!pipeline || !pipeline.id) {
                 vscode.window.showErrorMessage('Pipeline ID is missing');
                 return;
@@ -706,8 +681,10 @@ export class PipelineCommands {
     /**
      * Delete pipeline
      */
-    private async deletePipeline(pipeline: Pipeline): Promise<void> {
+    private async deletePipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
         try {
+            const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
+
             if (!pipeline || !pipeline.id) {
                 vscode.window.showErrorMessage('Pipeline ID is missing');
                 return;
@@ -747,8 +724,10 @@ export class PipelineCommands {
     /**
      * Edit pipeline (opens YAML file in editor)
      */
-    private async editPipeline(pipeline: Pipeline): Promise<void> {
+    private async editPipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
         try {
+            const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
+
             if (!pipeline || !pipeline.id) {
                 vscode.window.showErrorMessage('Pipeline ID is missing');
                 return;
