@@ -1356,7 +1356,7 @@ export class RunDetailsPanel {
             ${this.run.requestedBy?.displayName || this.run.requestedFor?.displayName ? `<span>By: ${this.run.requestedBy?.displayName || this.run.requestedFor?.displayName}</span>` : ''}
         </div>
         <div class="header-actions" style="position: absolute; top: 0; right: 0;">
-            ${(this.run.result?.toLowerCase() === 'failed' || this.run.result?.toLowerCase() === 'partiallysucceeded') ? `
+            ${this.run.result?.toLowerCase() === 'failed' ? `
                 <button class="rerun-failed-btn" onclick="rerunFailedJobs()">Rerun failed jobs</button>
             ` : ''}
             <button class="run-new-btn" onclick="runNew()">Run new</button>

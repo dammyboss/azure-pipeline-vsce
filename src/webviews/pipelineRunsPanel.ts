@@ -7,6 +7,8 @@ interface PipelineRunFilter {
     state?: string[];
     branch?: string;
     requestedFor?: string;
+    repository?: string;
+    tags?: string;
 }
 
 /**
@@ -139,15 +141,15 @@ export class PipelineRunsPanel {
     private getStatusIcon(result: string): string {
         const resultLower = result.toLowerCase();
         if (resultLower === 'succeeded') {
-            return '<span style="color: var(--vscode-testing-iconPassed); font-size: 16px;">✓</span>';
+            return '<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #107c10; color: white; font-size: 11px; font-weight: bold;">✓</span>';
         } else if (resultLower === 'failed') {
-            return '<span style="color: var(--vscode-testing-iconFailed); font-size: 16px;">✗</span>';
+            return '<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #d13438; color: white; font-size: 11px; font-weight: bold;">✗</span>';
         } else if (resultLower === 'partiallysucceeded') {
-            return '<span style="color: var(--vscode-editorWarning-foreground); font-size: 16px;">⚠</span>';
+            return '<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #ff8c00; color: white; font-size: 11px; font-weight: bold;">!</span>';
         } else if (resultLower === 'canceled' || resultLower === 'cancelled') {
-            return '<span style="color: var(--vscode-descriptionForeground); font-size: 16px;">○</span>';
+            return '<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #605e5c; color: white; font-size: 11px;">○</span>';
         } else if (resultLower === 'inprogress') {
-            return '<span style="color: var(--vscode-charts-blue); font-size: 16px;">●</span>';
+            return '<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #0078d4; color: white; font-size: 11px;">●</span>';
         }
         return '<span style="color: var(--vscode-descriptionForeground); font-size: 16px;">-</span>';
     }
@@ -241,6 +243,21 @@ export class PipelineRunsPanel {
             if (!requestedFor.includes(this.currentFilter.requestedFor.toLowerCase())) {
                 return false;
             }
+        }
+
+        // Filter by repository
+        if (this.currentFilter.repository) {
+            const repoName = (run.repository?.name || '').toLowerCase();
+            if (!repoName.includes(this.currentFilter.repository.toLowerCase())) {
+                return false;
+            }
+        }
+
+        // Filter by tags
+        if (this.currentFilter.tags) {
+            // Tags filtering - would need tags property on run
+            // For now, just skip if no tags on run
+            return false;
         }
 
         return true;
@@ -593,7 +610,37 @@ export class PipelineRunsPanel {
             </div>
         </div>
 
-        ${(this.currentFilter.searchText || this.currentFilter.state || this.currentFilter.branch || this.currentFilter.requestedFor) ? `
+        <div class="filter-dropdown" id="repositoryDropdown">
+            <button class="filter-dropdown-btn ${this.currentFilter.repository ? 'active' : ''}" onclick="toggleDropdown('repositoryDropdown')">
+                Repository <span>▼</span>
+            </button>
+            <div class="filter-dropdown-content">
+                <input
+                    type="text"
+                    style="width: calc(100% - 24px); margin: 8px 12px; padding: 6px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; font-size: 12px;"
+                    placeholder="Repository name"
+                    value="${this.escapeHtml(this.currentFilter.repository || '')}"
+                    oninput="updateRepositoryFilter(this.value)"
+                />
+            </div>
+        </div>
+
+        <div class="filter-dropdown" id="tagsDropdown">
+            <button class="filter-dropdown-btn ${this.currentFilter.tags ? 'active' : ''}" onclick="toggleDropdown('tagsDropdown')">
+                Tags <span>▼</span>
+            </button>
+            <div class="filter-dropdown-content">
+                <input
+                    type="text"
+                    style="width: calc(100% - 24px); margin: 8px 12px; padding: 6px 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; font-size: 12px;"
+                    placeholder="Tag name"
+                    value="${this.escapeHtml(this.currentFilter.tags || '')}"
+                    oninput="updateTagsFilter(this.value)"
+                />
+            </div>
+        </div>
+
+        ${(this.currentFilter.searchText || this.currentFilter.state || this.currentFilter.branch || this.currentFilter.requestedFor || this.currentFilter.repository || this.currentFilter.tags) ? `
             <button class="filter-clear-btn" onclick="clearAllFilters()">✕ Clear</button>
         ` : ''}
     </div>
@@ -610,13 +657,16 @@ export class PipelineRunsPanel {
             <tbody>
                 ${filteredRuns.map(({ run, timeline }) => {
                     const stages = this.getStageStatus(timeline);
-                    const timeAgo = run.finishTime || run.startTime
-                        ? this.formatTimeAgo(run.finishTime || run.startTime)
-                        : '-';
-                    const duration = run.startTime
-                        ? this.formatDuration(run.startTime, run.finishTime)
-                        : '-';
-                    const triggeredBy = run.requestedBy?.displayName || run.requestedFor?.displayName || 'Unknown';
+                    // Use finishedDate or finishTime, fallback to createdDate or startTime or queueTime
+                    const endTime = run.finishedDate || run.finishTime || run.createdDate || run.startTime || run.queueTime;
+                    const startTimeValue = run.createdDate || run.startTime || run.queueTime;
+                    const finishTimeValue = run.finishedDate || run.finishTime;
+
+                    const timeAgo = endTime ? this.formatTimeAgo(endTime) : '-';
+                    const duration = startTimeValue && finishTimeValue
+                        ? this.formatDuration(startTimeValue, finishTimeValue)
+                        : (startTimeValue && !finishTimeValue ? 'In progress' : '-');
+                    const triggeredBy = run.requestedBy?.displayName || run.requestedFor?.displayName || 'System';
 
                     return `
                         <tr class="run-row" onclick="openRun(${run.id})">
@@ -722,6 +772,16 @@ export class PipelineRunsPanel {
 
         function updateRequestedForFilter(value) {
             currentFilter.requestedFor = value || undefined;
+            applyFilter();
+        }
+
+        function updateRepositoryFilter(value) {
+            currentFilter.repository = value || undefined;
+            applyFilter();
+        }
+
+        function updateTagsFilter(value) {
+            currentFilter.tags = value || undefined;
             applyFilter();
         }
 
