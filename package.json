@@ -147,6 +147,12 @@
         "icon": "$(filter)"
       },
       {
+        "command": "azurePipelines.filterPipelines",
+        "title": "Filter Pipelines",
+        "category": "Azure Pipelines",
+        "icon": "$(filter)"
+      },
+      {
         "command": "azurePipelines.refreshServiceConnections",
         "title": "Refresh Service Connections",
         "category": "Azure Pipelines",
@@ -180,7 +186,12 @@
         {
           "command": "azurePipelines.refreshPipelines",
           "when": "view == azurePipelines",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "azurePipelines.filterPipelines",
+          "when": "view == azurePipelines",
+          "group": "navigation@2"
         },
         {
           "command": "azurePipelines.refreshRuns",

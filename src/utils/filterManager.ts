@@ -6,6 +6,8 @@ export interface RunFilter {
     dateFrom?: Date;
     dateTo?: Date;
     triggeredBy?: string;
+    buildNumber?: string;
+    pipelineName?: string;
 }
 
 export class FilterManager {
@@ -19,6 +21,8 @@ export class FilterManager {
             { label: '$(git-branch) Filter by Branch', value: 'branch' },
             { label: '$(calendar) Filter by Date Range', value: 'date' },
             { label: '$(person) Filter by Triggered By', value: 'user' },
+            { label: '$(search) Search by Build Number', value: 'buildNumber' },
+            { label: '$(rocket) Filter by Pipeline', value: 'pipeline' },
             { label: '$(clear-all) Clear All Filters', value: 'clear' }
         ];
 
@@ -42,6 +46,12 @@ export class FilterManager {
                 break;
             case 'user':
                 await this.filterByUser();
+                break;
+            case 'buildNumber':
+                await this.filterByBuildNumber();
+                break;
+            case 'pipeline':
+                await this.filterByPipeline();
                 break;
             case 'clear':
                 this.clearFilters();
@@ -125,6 +135,32 @@ export class FilterManager {
         }
     }
 
+    private async filterByBuildNumber() {
+        const buildNumber = await vscode.window.showInputBox({
+            prompt: 'Enter build number (e.g., 20250123.1)',
+            value: this.currentFilter.buildNumber,
+            placeHolder: 'Build number'
+        });
+
+        if (buildNumber !== undefined) {
+            this.currentFilter.buildNumber = buildNumber || undefined;
+            this._onFilterChanged.fire(this.currentFilter);
+        }
+    }
+
+    private async filterByPipeline() {
+        const pipelineName = await vscode.window.showInputBox({
+            prompt: 'Enter pipeline name',
+            value: this.currentFilter.pipelineName,
+            placeHolder: 'Pipeline name'
+        });
+
+        if (pipelineName !== undefined) {
+            this.currentFilter.pipelineName = pipelineName || undefined;
+            this._onFilterChanged.fire(this.currentFilter);
+        }
+    }
+
     clearFilters() {
         this.currentFilter = {};
         this._onFilterChanged.fire(this.currentFilter);
@@ -140,23 +176,31 @@ export class FilterManager {
 
     getFilterDescription(): string {
         const parts: string[] = [];
-        
+
         if (this.currentFilter.status && this.currentFilter.status.length > 0) {
             parts.push(`Status: ${this.currentFilter.status.join(', ')}`);
         }
-        
+
         if (this.currentFilter.branch) {
             parts.push(`Branch: ${this.currentFilter.branch}`);
         }
-        
+
         if (this.currentFilter.dateFrom) {
             parts.push(`From: ${this.currentFilter.dateFrom.toLocaleDateString()}`);
         }
-        
+
         if (this.currentFilter.triggeredBy) {
             parts.push(`By: ${this.currentFilter.triggeredBy}`);
         }
-        
+
+        if (this.currentFilter.buildNumber) {
+            parts.push(`Build: ${this.currentFilter.buildNumber}`);
+        }
+
+        if (this.currentFilter.pipelineName) {
+            parts.push(`Pipeline: ${this.currentFilter.pipelineName}`);
+        }
+
         return parts.join(' | ') || 'No filters';
     }
 
@@ -192,6 +236,20 @@ export class FilterManager {
         if (this.currentFilter.triggeredBy) {
             const requestedBy = run.requestedBy?.displayName || run.requestedBy?.uniqueName || '';
             if (!requestedBy.toLowerCase().includes(this.currentFilter.triggeredBy.toLowerCase())) {
+                return false;
+            }
+        }
+
+        if (this.currentFilter.buildNumber) {
+            const runBuildNumber = run.buildNumber || '';
+            if (!runBuildNumber.toLowerCase().includes(this.currentFilter.buildNumber.toLowerCase())) {
+                return false;
+            }
+        }
+
+        if (this.currentFilter.pipelineName) {
+            const pipelineName = run.pipeline?.name || run.definition?.name || '';
+            if (!pipelineName.toLowerCase().includes(this.currentFilter.pipelineName.toLowerCase())) {
                 return false;
             }
         }

@@ -2,6 +2,12 @@ import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { Pipeline, PipelineRun, RunResult, RunStatus } from '../models/types';
 
+export interface PipelineFilter {
+    name?: string;
+    folder?: string;
+    status?: string[]; // succeeded, failed, inProgress, partiallySucceeded, etc.
+}
+
 /**
  * Pipeline with latest run information
  */
@@ -139,6 +145,7 @@ export class PipelinesTreeProvider implements vscode.TreeDataProvider<PipelineTr
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
     private pipelines: PipelineWithStatus[] = [];
+    private currentFilter: PipelineFilter = {};
 
     constructor(private client: AzureDevOpsClient) {}
 
@@ -214,8 +221,11 @@ export class PipelinesTreeProvider implements vscode.TreeDataProvider<PipelineTr
                 })
             );
 
+            // Apply filters
+            const filteredPipelines = pipelinesWithStatus.filter(pipeline => this.matchesFilter(pipeline));
+
             // Group by folder
-            const grouped = this.groupByFolder(pipelinesWithStatus);
+            const grouped = this.groupByFolder(filteredPipelines);
 
             return grouped.map(
                 pipeline => new PipelineTreeItem(pipeline, vscode.TreeItemCollapsibleState.None)
@@ -248,5 +258,147 @@ export class PipelinesTreeProvider implements vscode.TreeDataProvider<PipelineTr
      */
     getPipelines(): PipelineWithStatus[] {
         return this.pipelines;
+    }
+
+    /**
+     * Show filter dialog
+     */
+    async showFilterDialog(): Promise<void> {
+        const options = [
+            { label: '$(search) Filter by Name', value: 'name' },
+            { label: '$(folder) Filter by Folder', value: 'folder' },
+            { label: '$(filter) Filter by Status', value: 'status' },
+            { label: '$(clear-all) Clear All Filters', value: 'clear' }
+        ];
+
+        const selected = await vscode.window.showQuickPick(options, {
+            placeHolder: 'Select filter type'
+        });
+
+        if (!selected) {
+            return;
+        }
+
+        switch (selected.value) {
+            case 'name':
+                await this.filterByName();
+                break;
+            case 'folder':
+                await this.filterByFolder();
+                break;
+            case 'status':
+                await this.filterByStatus();
+                break;
+            case 'clear':
+                this.clearFilters();
+                break;
+        }
+    }
+
+    private async filterByName() {
+        const name = await vscode.window.showInputBox({
+            prompt: 'Enter pipeline name',
+            value: this.currentFilter.name,
+            placeHolder: 'Pipeline name'
+        });
+
+        if (name !== undefined) {
+            this.currentFilter.name = name || undefined;
+            this.refresh();
+        }
+    }
+
+    private async filterByFolder() {
+        const folder = await vscode.window.showInputBox({
+            prompt: 'Enter folder name',
+            value: this.currentFilter.folder,
+            placeHolder: 'Folder name'
+        });
+
+        if (folder !== undefined) {
+            this.currentFilter.folder = folder || undefined;
+            this.refresh();
+        }
+    }
+
+    private async filterByStatus() {
+        const statuses = [
+            { label: '✓ Succeeded', value: 'succeeded', picked: this.currentFilter.status?.includes('succeeded') },
+            { label: '✗ Failed', value: 'failed', picked: this.currentFilter.status?.includes('failed') },
+            { label: '● In Progress', value: 'inProgress', picked: this.currentFilter.status?.includes('inProgress') },
+            { label: '⚠ Partially Succeeded', value: 'partiallySucceeded', picked: this.currentFilter.status?.includes('partiallySucceeded') },
+            { label: '○ Canceled', value: 'canceled', picked: this.currentFilter.status?.includes('canceled') },
+            { label: '⚪ No Runs', value: 'noRuns', picked: this.currentFilter.status?.includes('noRuns') }
+        ];
+
+        const selected = await vscode.window.showQuickPick(statuses, {
+            placeHolder: 'Select statuses to filter',
+            canPickMany: true
+        });
+
+        if (selected && selected.length > 0) {
+            this.currentFilter.status = selected.map(s => s.value);
+            this.refresh();
+        }
+    }
+
+    clearFilters() {
+        this.currentFilter = {};
+        this.refresh();
+    }
+
+    hasActiveFilters(): boolean {
+        return Object.keys(this.currentFilter).length > 0;
+    }
+
+    getFilterDescription(): string {
+        const parts: string[] = [];
+
+        if (this.currentFilter.name) {
+            parts.push(`Name: ${this.currentFilter.name}`);
+        }
+
+        if (this.currentFilter.folder) {
+            parts.push(`Folder: ${this.currentFilter.folder}`);
+        }
+
+        if (this.currentFilter.status && this.currentFilter.status.length > 0) {
+            parts.push(`Status: ${this.currentFilter.status.join(', ')}`);
+        }
+
+        return parts.join(' | ') || 'No filters';
+    }
+
+    private matchesFilter(pipeline: PipelineWithStatus): boolean {
+        // Filter by name
+        if (this.currentFilter.name) {
+            if (!pipeline.name.toLowerCase().includes(this.currentFilter.name.toLowerCase())) {
+                return false;
+            }
+        }
+
+        // Filter by folder
+        if (this.currentFilter.folder) {
+            const pipelineFolder = pipeline.folder || '';
+            if (!pipelineFolder.toLowerCase().includes(this.currentFilter.folder.toLowerCase())) {
+                return false;
+            }
+        }
+
+        // Filter by status
+        if (this.currentFilter.status && this.currentFilter.status.length > 0) {
+            if (!pipeline.latestRun && !this.currentFilter.status.includes('noRuns')) {
+                return false;
+            }
+
+            if (pipeline.latestRun) {
+                const runStatus = String(pipeline.latestRun.result || pipeline.latestRun.status).toLowerCase();
+                if (!this.currentFilter.status.some(s => runStatus === s.toLowerCase())) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 }

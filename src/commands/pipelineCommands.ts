@@ -53,6 +53,9 @@ export class PipelineCommands {
             ),
             vscode.commands.registerCommand('azurePipelines.filterRuns', () =>
                 this.filterRuns()
+            ),
+            vscode.commands.registerCommand('azurePipelines.filterPipelines', () =>
+                this.filterPipelines()
             )
         );
     }
@@ -300,9 +303,16 @@ export class PipelineCommands {
     }
     
     /**
-     * Show filter dialog
+     * Show filter dialog for runs
      */
     private async filterRuns(): Promise<void> {
         await this.runsProvider.showFilterDialog();
+    }
+
+    /**
+     * Show filter dialog for pipelines
+     */
+    private async filterPipelines(): Promise<void> {
+        await this.pipelinesProvider.showFilterDialog();
     }
 }
