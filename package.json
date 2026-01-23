@@ -36,6 +36,11 @@
     "views": {
       "azure-pipelines-container": [
         {
+          "id": "azurePipelinesConnection",
+          "name": "Connection",
+          "contextualTitle": "Azure DevOps Connection"
+        },
+        {
           "id": "azurePipelines",
           "name": "Pipelines",
           "contextualTitle": "Azure DevOps Pipelines"

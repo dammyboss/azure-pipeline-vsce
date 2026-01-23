@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AzureDevOpsAuthProvider } from './authentication/authProvider';
 import { AzureDevOpsClient } from './api/azureDevOpsClient';
 import { ConfigManager } from './utils/configManager';
+import { ConnectionStatusProvider } from './views/connectionStatusProvider';
 import { PipelinesTreeProvider } from './views/pipelinesTreeView';
 import { RunsTreeProvider } from './views/runsTreeView';
 import { StagesTreeProvider } from './views/stagesTreeView';
@@ -12,6 +13,7 @@ import { ServiceConnectionCommands } from './commands/serviceConnectionCommands'
 let authProvider: AzureDevOpsAuthProvider;
 let client: AzureDevOpsClient;
 let configManager: ConfigManager;
+let connectionStatusProvider: ConnectionStatusProvider;
 let pipelinesProvider: PipelinesTreeProvider;
 let runsProvider: RunsTreeProvider;
 let stagesProvider: StagesTreeProvider;
@@ -35,12 +37,17 @@ export async function activate(context: vscode.ExtensionContext) {
     configManager = new ConfigManager(context, client);
 
     // Initialize tree providers
+    connectionStatusProvider = new ConnectionStatusProvider(authProvider, configManager);
     pipelinesProvider = new PipelinesTreeProvider(client);
     runsProvider = new RunsTreeProvider(client);
     stagesProvider = new StagesTreeProvider(client);
     serviceConnectionsProvider = new ServiceConnectionsTreeProvider(client);
 
     // Register tree views
+    const connectionStatusTreeView = vscode.window.createTreeView('azurePipelinesConnection', {
+        treeDataProvider: connectionStatusProvider
+    });
+
     const pipelinesTreeView = vscode.window.createTreeView('azurePipelines', {
         treeDataProvider: pipelinesProvider,
         showCollapseAll: true
@@ -61,7 +68,7 @@ export async function activate(context: vscode.ExtensionContext) {
         showCollapseAll: true
     });
 
-    context.subscriptions.push(pipelinesTreeView, runsTreeView, stagesTreeView, serviceConnectionsTreeView);
+    context.subscriptions.push(connectionStatusTreeView, pipelinesTreeView, runsTreeView, stagesTreeView, serviceConnectionsTreeView);
 
     // Initialize commands
     const pipelineCommands = new PipelineCommands(client, pipelinesProvider, runsProvider, stagesProvider);
@@ -74,13 +81,17 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('azurePipelines.signIn', async () => {
             await authProvider.signIn();
+            connectionStatusProvider.refresh();
             await setupAfterAuth();
         }),
         vscode.commands.registerCommand('azurePipelines.signOut', async () => {
             await authProvider.signOut();
             await configManager.clear();
+            connectionStatusProvider.refresh();
             pipelinesProvider.refresh();
             runsProvider.refresh();
+            stagesProvider.refresh();
+            serviceConnectionsProvider.refresh();
             updateStatusBar();
         }),
         vscode.commands.registerCommand('azurePipelines.selectOrganization', async () => {
@@ -90,6 +101,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 return;
             }
             await configManager.promptForConfiguration();
+            connectionStatusProvider.refresh();
             pipelinesProvider.refresh();
             runsProvider.refresh();
             updateStatusBar();
@@ -138,12 +150,14 @@ async function setupAfterAuth(): Promise<void> {
 
         if (!configured) {
             vscode.window.showWarningMessage('Extension not configured. Please select an organization and project.');
+            connectionStatusProvider.refresh();
             updateStatusBar();
             return;
         }
     }
 
     // Refresh views
+    connectionStatusProvider.refresh();
     pipelinesProvider.refresh();
     runsProvider.refresh();
     serviceConnectionsProvider.refresh();
@@ -153,17 +167,28 @@ async function setupAfterAuth(): Promise<void> {
 /**
  * Update status bar
  */
-function updateStatusBar(): void {
+async function updateStatusBar(): Promise<void> {
+    const isAuthenticated = await authProvider.isAuthenticated();
     const orgName = configManager.getOrganizationName();
     const projectName = configManager.getProjectName();
 
-    if (orgName && projectName) {
+    if (!isAuthenticated) {
+        statusBarItem.text = '$(sign-in) Sign in to Azure DevOps';
+        statusBarItem.tooltip = 'Click to sign in with your Microsoft account';
+        statusBarItem.command = 'azurePipelines.signIn';
+        statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        statusBarItem.show();
+    } else if (orgName && projectName) {
         statusBarItem.text = `$(azure-devops) ${orgName} / ${projectName}`;
         statusBarItem.tooltip = 'Click to change organization/project';
+        statusBarItem.command = 'azurePipelines.selectOrganization';
+        statusBarItem.backgroundColor = undefined;
         statusBarItem.show();
     } else {
-        statusBarItem.text = '$(azure-devops) Azure Pipelines';
-        statusBarItem.tooltip = 'Click to configure';
+        statusBarItem.text = '$(warning) Select Organization';
+        statusBarItem.tooltip = 'Click to select an organization and project';
+        statusBarItem.command = 'azurePipelines.selectOrganization';
+        statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         statusBarItem.show();
     }
 }
