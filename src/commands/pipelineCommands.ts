@@ -62,6 +62,15 @@ export class PipelineCommands {
             ),
             vscode.commands.registerCommand('azurePipelines.createPipeline', () =>
                 this.createPipeline()
+            ),
+            vscode.commands.registerCommand('azurePipelines.renamePipeline', (pipeline: Pipeline) =>
+                this.renamePipeline(pipeline)
+            ),
+            vscode.commands.registerCommand('azurePipelines.deletePipeline', (pipeline: Pipeline) =>
+                this.deletePipeline(pipeline)
+            ),
+            vscode.commands.registerCommand('azurePipelines.editPipeline', (pipeline: Pipeline) =>
+                this.editPipeline(pipeline)
             )
         );
     }
@@ -71,6 +80,12 @@ export class PipelineCommands {
      */
     private async runPipeline(pipeline: Pipeline): Promise<void> {
         try {
+            // Validate pipeline ID
+            if (!pipeline || !pipeline.id) {
+                vscode.window.showErrorMessage('Pipeline ID is missing. Please refresh the pipelines view and try again.');
+                return;
+            }
+
             // Get repositories to find branches
             const repos = await this.client.getRepositories();
             const repo = repos.find(r => r.id === pipeline.repository?.id);
@@ -572,6 +587,201 @@ export class PipelineCommands {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to create pipeline: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * Rename/move pipeline
+     */
+    private async renamePipeline(pipeline: Pipeline): Promise<void> {
+        try {
+            if (!pipeline || !pipeline.id) {
+                vscode.window.showErrorMessage('Pipeline ID is missing');
+                return;
+            }
+
+            // Step 1: Enter new name
+            const newName = await vscode.window.showInputBox({
+                prompt: 'Enter new pipeline name',
+                value: pipeline.name,
+                placeHolder: 'Pipeline name',
+                ignoreFocusOut: true,
+                validateInput: (value) => {
+                    if (!value || value.trim().length === 0) {
+                        return 'Name cannot be empty.';
+                    }
+                    return null;
+                }
+            });
+
+            if (!newName || newName === pipeline.name) {
+                // User cancelled or name unchanged, ask about folder only
+                if (newName === undefined) {
+                    return;
+                }
+            }
+
+            // Step 2: Select folder (optional)
+            const folderChoice = await vscode.window.showQuickPick(
+                [
+                    {
+                        label: '$(folder) Keep current folder',
+                        description: pipeline.folder || '\\',
+                        value: 'keep'
+                    },
+                    {
+                        label: '$(folder) Move to root',
+                        value: 'root'
+                    },
+                    {
+                        label: '$(folder) Specify folder path',
+                        value: 'custom'
+                    }
+                ],
+                {
+                    placeHolder: 'Select folder location',
+                    ignoreFocusOut: true
+                }
+            );
+
+            if (!folderChoice) {
+                return;
+            }
+
+            let newFolder: string | undefined;
+
+            if (folderChoice.value === 'root') {
+                newFolder = '\\';
+            } else if (folderChoice.value === 'custom') {
+                newFolder = await vscode.window.showInputBox({
+                    prompt: 'Enter folder path (e.g., \\MyFolder)',
+                    value: pipeline.folder || '\\',
+                    placeHolder: '\\MyFolder',
+                    ignoreFocusOut: true
+                });
+
+                if (newFolder === undefined) {
+                    return;
+                }
+
+                // Normalize folder path to start with backslash
+                if (newFolder && !newFolder.startsWith('\\')) {
+                    newFolder = '\\' + newFolder;
+                }
+            } else {
+                // Keep current folder
+                newFolder = undefined;
+            }
+
+            // Only update if something changed
+            if ((newName && newName !== pipeline.name) || newFolder !== undefined) {
+                await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: 'Updating pipeline...',
+                        cancellable: false
+                    },
+                    async () => {
+                        await this.client.updatePipeline(
+                            pipeline.id,
+                            newName && newName !== pipeline.name ? newName : undefined,
+                            newFolder
+                        );
+
+                        vscode.window.showInformationMessage(
+                            `Pipeline updated successfully: ${newName || pipeline.name}`
+                        );
+
+                        // Refresh pipelines view
+                        this.pipelinesProvider.refresh();
+                    }
+                );
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to update pipeline: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * Delete pipeline
+     */
+    private async deletePipeline(pipeline: Pipeline): Promise<void> {
+        try {
+            if (!pipeline || !pipeline.id) {
+                vscode.window.showErrorMessage('Pipeline ID is missing');
+                return;
+            }
+
+            const confirmation = await vscode.window.showWarningMessage(
+                `Are you sure you want to delete pipeline "${pipeline.name}"? This action cannot be undone.`,
+                { modal: true },
+                'Delete',
+                'Cancel'
+            );
+
+            if (confirmation !== 'Delete') {
+                return;
+            }
+
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Deleting pipeline: ${pipeline.name}`,
+                    cancellable: false
+                },
+                async () => {
+                    await this.client.deletePipeline(pipeline.id);
+                    vscode.window.showInformationMessage(`Pipeline deleted: ${pipeline.name}`);
+
+                    // Refresh pipelines view
+                    this.pipelinesProvider.refresh();
+                }
+            );
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to delete pipeline: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * Edit pipeline (opens YAML file in editor)
+     */
+    private async editPipeline(pipeline: Pipeline): Promise<void> {
+        try {
+            if (!pipeline || !pipeline.id) {
+                vscode.window.showErrorMessage('Pipeline ID is missing');
+                return;
+            }
+
+            // Get the pipeline to find its YAML file path
+            const pipelineDetails = await this.client.getPipeline(pipeline.id);
+
+            if (!pipelineDetails.repository?.id) {
+                vscode.window.showErrorMessage('Pipeline repository information not found');
+                return;
+            }
+
+            // Get the YAML content
+            const yaml = await this.client.getPipelineYaml(pipeline.id);
+
+            // Open in VSCode editor with YAML language support
+            const doc = await vscode.workspace.openTextDocument({
+                content: yaml,
+                language: 'yaml'
+            });
+
+            await vscode.window.showTextDocument(doc, {
+                preview: false,
+                viewColumn: vscode.ViewColumn.Active
+            });
+
+            vscode.window.showInformationMessage(
+                'Note: This is a read-only view. To modify the pipeline, edit the YAML file in your repository.'
+            );
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to edit pipeline: ${errorMessage}`);
         }
     }
 }

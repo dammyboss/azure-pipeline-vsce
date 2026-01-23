@@ -297,12 +297,43 @@ export class AzureDevOpsClient {
     }
 
     /**
+     * Update/rename/move a pipeline (using Build Definitions API)
+     * Requires getting the full definition first, then updating it
+     */
+    async updatePipeline(pipelineId: number, name?: string, folder?: string): Promise<Pipeline> {
+        // First, get the current definition to get its revision number
+        const currentDefinition = await this.axiosInstance.get(
+            `${this.organizationUrl}/${this.projectName}/_apis/build/definitions/${pipelineId}`,
+            { params: { 'api-version': '7.1' } }
+        );
+
+        const definition = currentDefinition.data;
+
+        // Update the name and/or folder if provided
+        if (name !== undefined) {
+            definition.name = name;
+        }
+        if (folder !== undefined) {
+            definition.path = folder;
+        }
+
+        // PUT the updated definition back (revision must match)
+        const response = await this.axiosInstance.put(
+            `${this.organizationUrl}/${this.projectName}/_apis/build/definitions/${pipelineId}`,
+            definition,
+            { params: { 'api-version': '7.1' } }
+        );
+
+        return response.data;
+    }
+
+    /**
      * Delete a pipeline
      */
     async deletePipeline(pipelineId: number): Promise<void> {
         await this.axiosInstance.delete(
-            `${this.organizationUrl}/${this.projectName}/_apis/pipelines/${pipelineId}`,
-            { params: { 'api-version': '7.1-preview.1' } }
+            `${this.organizationUrl}/${this.projectName}/_apis/build/definitions/${pipelineId}`,
+            { params: { 'api-version': '7.1' } }
         );
     }
 
