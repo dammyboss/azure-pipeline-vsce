@@ -166,16 +166,26 @@ export class AzureDevOpsClient {
 
             if (accountsResponse.data && accountsResponse.data.count > 0) {
                 const organizations = accountsResponse.data.value.map((account: any) => {
-                    // Ensure we always construct a proper dev.azure.com URL
-                    let accountUri = account.accountUri;
+                    // Clean up the accountUri from the API response
+                    // The API may return URLs with 'vssps.' subdomain which doesn't work for REST APIs
+                    // Examples:
+                    //   - https://vssps.dev.azure.com/org/ -> https://dev.azure.com/org
+                    //   - https://org.vssps.visualstudio.com/ -> https://org.visualstudio.com
+                    let accountUri = account.accountUri || '';
 
-                    // If accountUri is missing or not in the right format, construct it
-                    if (!accountUri || !accountUri.includes('dev.azure.com')) {
-                        accountUri = `https://dev.azure.com/${account.accountName}`;
+                    if (accountUri) {
+                        // Remove 'vssps.' subdomain (REST APIs don't use this)
+                        accountUri = accountUri.replace('vssps.dev.azure.com', 'dev.azure.com');
+                        accountUri = accountUri.replace('.vssps.visualstudio.com', '.visualstudio.com');
+
+                        // Remove trailing slashes
+                        accountUri = accountUri.replace(/\/+$/, '');
                     }
 
-                    // Remove any trailing slashes
-                    accountUri = accountUri.replace(/\/+$/, '');
+                    // If accountUri is still empty/invalid, construct using modern format
+                    if (!accountUri || !accountUri.startsWith('http')) {
+                        accountUri = `https://dev.azure.com/${account.accountName}`;
+                    }
 
                     console.log(`[Azure DevOps] Organization: ${account.accountName} -> ${accountUri}`);
 
