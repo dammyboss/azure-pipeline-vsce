@@ -56,6 +56,12 @@ export class PipelineCommands {
             ),
             vscode.commands.registerCommand('azurePipelines.filterPipelines', () =>
                 this.filterPipelines()
+            ),
+            vscode.commands.registerCommand('azurePipelines.openPipelineInBrowser', (pipeline: Pipeline) =>
+                this.openPipelineInBrowser(pipeline)
+            ),
+            vscode.commands.registerCommand('azurePipelines.createPipeline', () =>
+                this.createPipeline()
             )
         );
     }
@@ -314,5 +320,31 @@ export class PipelineCommands {
      */
     private async filterPipelines(): Promise<void> {
         await this.pipelinesProvider.showFilterDialog();
+    }
+
+    /**
+     * Open pipeline in browser
+     */
+    private async openPipelineInBrowser(pipeline: Pipeline): Promise<void> {
+        try {
+            const config = this.client.getConfig();
+            const pipelineUrl = `${config.organizationUrl}/${config.projectName}/_build?definitionId=${pipeline.id}`;
+            vscode.env.openExternal(vscode.Uri.parse(pipelineUrl));
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to open pipeline in browser: ${error}`);
+        }
+    }
+
+    /**
+     * Create new pipeline
+     */
+    private async createPipeline(): Promise<void> {
+        try {
+            const config = this.client.getConfig();
+            const createPipelineUrl = `${config.organizationUrl}/${config.projectName}/_build?_a=new`;
+            vscode.env.openExternal(vscode.Uri.parse(createPipelineUrl));
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to open create pipeline page: ${error}`);
+        }
     }
 }

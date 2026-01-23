@@ -153,6 +153,18 @@
         "icon": "$(filter)"
       },
       {
+        "command": "azurePipelines.openPipelineInBrowser",
+        "title": "Open Pipeline in Browser",
+        "category": "Azure Pipelines",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "azurePipelines.createPipeline",
+        "title": "Create New Pipeline",
+        "category": "Azure Pipelines",
+        "icon": "$(add)"
+      },
+      {
         "command": "azurePipelines.refreshServiceConnections",
         "title": "Refresh Service Connections",
         "category": "Azure Pipelines",
@@ -194,6 +206,11 @@
           "group": "navigation@2"
         },
         {
+          "command": "azurePipelines.createPipeline",
+          "when": "view == azurePipelines",
+          "group": "navigation@3"
+        },
+        {
           "command": "azurePipelines.refreshRuns",
           "when": "view == azurePipelinesRuns",
           "group": "navigation@1"
@@ -231,9 +248,9 @@
           "group": "1_actions@1"
         },
         {
-          "command": "azurePipelines.runPipeline",
+          "command": "azurePipelines.openPipelineInBrowser",
           "when": "view == azurePipelines && viewItem == pipeline",
-          "group": "1_actions@2"
+          "group": "2_other@1"
         },
         {
           "command": "azurePipelines.cancelRun",
@@ -251,14 +268,9 @@
           "group": "1_actions@2"
         },
         {
-          "command": "azurePipelines.retryRun",
-          "when": "view == azurePipelinesRuns && viewItem == run-failed",
-          "group": "2_actions@1"
-        },
-        {
           "command": "azurePipelines.cancelRun",
           "when": "view == azurePipelinesRuns && viewItem == run-running",
-          "group": "2_actions@2"
+          "group": "2_actions@1"
         },
         {
           "command": "azurePipelines.downloadArtifacts",
