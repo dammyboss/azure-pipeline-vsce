@@ -263,21 +263,35 @@ export class AzureDevOpsClient {
     /**
      * Create a new pipeline
      */
-    async createPipeline(name: string, yamlPath: string, repositoryId: string): Promise<Pipeline> {
+    async createPipeline(
+        name: string,
+        yamlPath: string,
+        repositoryId: string,
+        repositoryName: string,
+        folder?: string | null
+    ): Promise<Pipeline> {
+        const requestBody: any = {
+            name,
+            configuration: {
+                type: 'yaml',
+                path: yamlPath,
+                repository: {
+                    id: repositoryId,
+                    name: repositoryName,
+                    type: 'azureReposGit'
+                }
+            }
+        };
+
+        // Add folder if specified (null represents root)
+        if (folder !== undefined) {
+            requestBody.folder = folder || null;
+        }
+
         const response = await this.axiosInstance.post(
             `${this.organizationUrl}/${this.projectName}/_apis/pipelines`,
-            {
-                name,
-                configuration: {
-                    type: 'yaml',
-                    path: yamlPath,
-                    repository: {
-                        id: repositoryId,
-                        type: 'azureReposGit'
-                    }
-                }
-            },
-            { params: { 'api-version': '7.1-preview.1' } }
+            requestBody,
+            { params: { 'api-version': '7.1' } }
         );
         return response.data;
     }
@@ -808,5 +822,29 @@ export class AzureDevOpsClient {
             }
         );
         return response.data;
+    }
+
+    /**
+     * List items (files and folders) in a repository
+     */
+    async getRepositoryItems(
+        repositoryId: string,
+        scopePath: string = '/',
+        branch: string = 'main',
+        recursionLevel: 'none' | 'oneLevel' | 'full' = 'full'
+    ): Promise<any[]> {
+        const response = await this.axiosInstance.get(
+            `${this.organizationUrl}/${this.projectName}/_apis/git/repositories/${repositoryId}/items`,
+            {
+                params: {
+                    'api-version': '7.1',
+                    'scopePath': scopePath,
+                    'recursionLevel': recursionLevel,
+                    'versionDescriptor.version': branch,
+                    'versionDescriptor.versionType': 'branch'
+                }
+            }
+        );
+        return response.data.value || [];
     }
 }

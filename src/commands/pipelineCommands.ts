@@ -336,15 +336,242 @@ export class PipelineCommands {
     }
 
     /**
-     * Create new pipeline
+     * Create new pipeline with wizard
      */
     private async createPipeline(): Promise<void> {
         try {
-            const config = this.client.getConfig();
-            const createPipelineUrl = `${config.organizationUrl}/${config.projectName}/_build?_a=new`;
-            vscode.env.openExternal(vscode.Uri.parse(createPipelineUrl));
+            // Step 1: Get repositories
+            const repositories = await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Loading repositories...',
+                    cancellable: false
+                },
+                async () => await this.client.getRepositories()
+            );
+
+            if (repositories.length === 0) {
+                vscode.window.showErrorMessage('No repositories found in the project');
+                return;
+            }
+
+            // Step 2: Select repository
+            const repoItems = repositories.map(repo => ({
+                label: repo.name,
+                description: repo.defaultBranch?.replace('refs/heads/', '') || 'main',
+                detail: repo.remoteUrl,
+                repo
+            }));
+
+            const selectedRepo = await vscode.window.showQuickPick(repoItems, {
+                placeHolder: 'Select a repository for the pipeline',
+                ignoreFocusOut: true
+            });
+
+            if (!selectedRepo) {
+                return;
+            }
+
+            // Step 3: Select or enter YAML file path
+            const yamlPathChoice = await vscode.window.showQuickPick(
+                [
+                    {
+                        label: '$(search) Browse for YAML file',
+                        value: 'browse'
+                    },
+                    {
+                        label: '$(edit) Enter YAML file path manually',
+                        value: 'manual'
+                    }
+                ],
+                {
+                    placeHolder: 'How would you like to specify the YAML file?',
+                    ignoreFocusOut: true
+                }
+            );
+
+            if (!yamlPathChoice) {
+                return;
+            }
+
+            let yamlPath: string | undefined;
+
+            if (yamlPathChoice.value === 'browse') {
+                // Get default branch
+                const defaultBranch = selectedRepo.repo.defaultBranch?.replace('refs/heads/', '') || 'main';
+
+                // Load items from repository
+                const items = await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: 'Loading files from repository...',
+                        cancellable: false
+                    },
+                    async () => await this.client.getRepositoryItems(selectedRepo.repo.id, '/', defaultBranch, 'full')
+                );
+
+                // Filter for YAML/YML files
+                const yamlFiles = items.filter(item =>
+                    !item.isFolder &&
+                    (item.path.endsWith('.yml') || item.path.endsWith('.yaml'))
+                );
+
+                if (yamlFiles.length === 0) {
+                    vscode.window.showWarningMessage('No YAML files found in repository. Please enter path manually.');
+                    yamlPath = await vscode.window.showInputBox({
+                        prompt: 'Enter the path to the pipeline YAML file',
+                        value: '/azure-pipelines.yml',
+                        placeHolder: '/path/to/pipeline.yml',
+                        ignoreFocusOut: true,
+                        validateInput: (value) => {
+                            if (!value || !value.startsWith('/')) {
+                                return 'Path must start with /';
+                            }
+                            if (!value.endsWith('.yml') && !value.endsWith('.yaml')) {
+                                return 'Path must end with .yml or .yaml';
+                            }
+                            return null;
+                        }
+                    });
+                } else {
+                    const yamlFileItems = yamlFiles.map(file => ({
+                        label: file.path.split('/').pop() || file.path,
+                        description: file.path,
+                        detail: `Size: ${file.size || 0} bytes`,
+                        path: file.path
+                    }));
+
+                    const selectedFile = await vscode.window.showQuickPick(yamlFileItems, {
+                        placeHolder: 'Select a YAML file for the pipeline',
+                        ignoreFocusOut: true
+                    });
+
+                    if (!selectedFile) {
+                        return;
+                    }
+
+                    yamlPath = selectedFile.path;
+                }
+            } else {
+                // Manual entry
+                yamlPath = await vscode.window.showInputBox({
+                    prompt: 'Enter the path to the pipeline YAML file',
+                    value: '/azure-pipelines.yml',
+                    placeHolder: '/path/to/pipeline.yml',
+                    ignoreFocusOut: true,
+                    validateInput: (value) => {
+                        if (!value || !value.startsWith('/')) {
+                            return 'Path must start with /';
+                        }
+                        if (!value.endsWith('.yml') && !value.endsWith('.yaml')) {
+                            return 'Path must end with .yml or .yaml';
+                        }
+                        return null;
+                    }
+                });
+            }
+
+            if (!yamlPath) {
+                return;
+            }
+
+            // Step 4: Enter pipeline name
+            const pipelineName = await vscode.window.showInputBox({
+                prompt: 'Enter a name for the pipeline',
+                placeHolder: 'My Pipeline',
+                ignoreFocusOut: true,
+                validateInput: (value) => {
+                    if (!value || value.trim().length === 0) {
+                        return 'Pipeline name cannot be empty';
+                    }
+                    return null;
+                }
+            });
+
+            if (!pipelineName) {
+                return;
+            }
+
+            // Step 5: Optional folder
+            const folderChoice = await vscode.window.showQuickPick(
+                [
+                    {
+                        label: '$(folder) Place in root',
+                        value: 'root'
+                    },
+                    {
+                        label: '$(folder) Specify folder path',
+                        value: 'custom'
+                    }
+                ],
+                {
+                    placeHolder: 'Where should the pipeline be placed?',
+                    ignoreFocusOut: true
+                }
+            );
+
+            if (!folderChoice) {
+                return;
+            }
+
+            let folder: string | null | undefined;
+
+            if (folderChoice.value === 'custom') {
+                const folderInput = await vscode.window.showInputBox({
+                    prompt: 'Enter folder path (e.g., /MyFolder or MyFolder)',
+                    placeHolder: '/MyFolder',
+                    ignoreFocusOut: true
+                });
+
+                if (folderInput === undefined) {
+                    return;
+                }
+
+                // Normalize folder path
+                if (folderInput && !folderInput.startsWith('/') && !folderInput.startsWith('\\')) {
+                    folder = '/' + folderInput;
+                } else {
+                    folder = folderInput;
+                }
+            } else {
+                folder = null; // null represents root in Azure DevOps API
+            }
+
+            // Step 6: Create the pipeline
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Creating pipeline: ${pipelineName}`,
+                    cancellable: false
+                },
+                async () => {
+                    const newPipeline = await this.client.createPipeline(
+                        pipelineName,
+                        yamlPath!,
+                        selectedRepo.repo.id,
+                        selectedRepo.repo.name,
+                        folder
+                    );
+
+                    vscode.window.showInformationMessage(
+                        `Pipeline created successfully: ${newPipeline.name}`,
+                        'View Pipeline',
+                        'Run Pipeline'
+                    ).then(async (selection) => {
+                        if (selection === 'View Pipeline') {
+                            this.openPipelineInBrowser(newPipeline);
+                        } else if (selection === 'Run Pipeline') {
+                            await this.runPipeline(newPipeline);
+                        }
+                    });
+
+                    // Refresh pipelines view
+                    this.pipelinesProvider.refresh();
+                }
+            );
         } catch (error) {
-            vscode.window.showErrorMessage(`Failed to open create pipeline page: ${error}`);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to create pipeline: ${errorMessage}`);
         }
     }
 }
