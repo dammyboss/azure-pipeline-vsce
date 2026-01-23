@@ -39,6 +39,9 @@ export class RunDetailsPanel {
                     case 'runNew':
                         await this.runNewPipeline();
                         break;
+                    case 'rerunFailedJobs':
+                        await this.rerunFailedJobs();
+                        break;
                     case 'downloadLogs':
                         await this.downloadLogs();
                         break;
@@ -171,6 +174,67 @@ export class RunDetailsPanel {
             });
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to open run pipeline form: ${error}`);
+        }
+    }
+
+    private async rerunFailedJobs() {
+        try {
+            const pipelineId = this.run.pipeline?.id || this.run.definition?.id;
+            if (!pipelineId) {
+                vscode.window.showErrorMessage('Pipeline ID not found');
+                return;
+            }
+
+            // Get timeline to find failed stages/jobs
+            const timeline = await this.client.getRunTimeline(this.run.id);
+            if (!timeline || !timeline.records) {
+                vscode.window.showErrorMessage('No timeline information available');
+                return;
+            }
+
+            // Find failed stages
+            const failedStages = timeline.records
+                .filter(record =>
+                    (record.type === 'Stage' || record.type === 'Job') &&
+                    record.result?.toLowerCase() === 'failed'
+                )
+                .map(record => record.name || 'Unknown');
+
+            if (failedStages.length === 0) {
+                vscode.window.showInformationMessage('No failed jobs found in this run');
+                return;
+            }
+
+            // Fetch pipeline data for the form
+            const [pipeline, branches, variables, stages] = await Promise.all([
+                this.client.getPipeline(pipelineId),
+                this.fetchBranches(pipelineId),
+                this.fetchVariables(pipelineId),
+                this.fetchStages(pipelineId)
+            ]);
+
+            // Identify which stages to run (only the failed ones)
+            const stagesToRun = stages
+                .filter(stage => failedStages.some(failedStage =>
+                    failedStage.toLowerCase().includes(stage.name.toLowerCase())
+                ))
+                .map(stage => stage.name);
+
+            // Send data to webview to show the modal form with only failed stages pre-selected
+            this.panel.webview.postMessage({
+                command: 'showRunPipelineForm',
+                data: {
+                    pipeline,
+                    branches,
+                    variables,
+                    stages,
+                    defaultBranch: this.run.sourceBranch?.replace('refs/heads/', '') || 'main',
+                    preselectStages: stagesToRun.length > 0 ? stagesToRun : undefined,
+                    isRerunFailedJobs: true
+                }
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to rerun failed jobs: ${error}`);
         }
     }
 
@@ -706,6 +770,19 @@ export class RunDetailsPanel {
         }
         .run-new-btn:hover {
             background: var(--vscode-button-hoverBackground);
+        }
+        .rerun-failed-btn {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .rerun-failed-btn:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
         }
         .menu-button {
             background: var(--vscode-button-secondaryBackground);
@@ -1279,6 +1356,9 @@ export class RunDetailsPanel {
             ${this.run.requestedBy?.displayName || this.run.requestedFor?.displayName ? `<span>By: ${this.run.requestedBy?.displayName || this.run.requestedFor?.displayName}</span>` : ''}
         </div>
         <div class="header-actions" style="position: absolute; top: 0; right: 0;">
+            ${(this.run.result?.toLowerCase() === 'failed' || this.run.result?.toLowerCase() === 'partiallysucceeded') ? `
+                <button class="rerun-failed-btn" onclick="rerunFailedJobs()">Rerun failed jobs</button>
+            ` : ''}
             <button class="run-new-btn" onclick="runNew()">Run new</button>
             <div style="position: relative;">
                 <button class="menu-button" onclick="toggleMenu(event)">⋮</button>
@@ -1488,6 +1568,10 @@ export class RunDetailsPanel {
 
         function runNew() {
             vscode.postMessage({ command: 'runNew' });
+        }
+
+        function rerunFailedJobs() {
+            vscode.postMessage({ command: 'rerunFailedJobs' });
         }
 
         function downloadLogs() {

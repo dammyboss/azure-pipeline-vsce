@@ -7,6 +7,7 @@ import { RunDetailsPanel } from '../webviews/runDetailsPanel';
 import { LiveLogPanel } from '../webviews/liveLogPanel';
 import { RunPipelineModal } from '../webviews/runPipelineModal';
 import { RenamePipelineModal } from '../webviews/renamePipelineModal';
+import { PipelineRunsPanel } from '../webviews/pipelineRunsPanel';
 
 /**
  * Pipeline command handlers
@@ -122,10 +123,16 @@ export class PipelineCommands {
     /**
      * View runs for a specific pipeline
      */
-    private viewPipelineRuns(pipelineOrTreeItem: Pipeline | any): void {
+    private async viewPipelineRuns(pipelineOrTreeItem: Pipeline | any): Promise<void> {
         const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
-        this.runsProvider.setFilter(pipeline.id);
-        vscode.commands.executeCommand('azurePipelinesRuns.focus');
+
+        if (!pipeline || !pipeline.id) {
+            vscode.window.showErrorMessage('Pipeline information is missing');
+            return;
+        }
+
+        // Open the pipeline runs panel
+        await PipelineRunsPanel.show(this.client, pipeline);
     }
 
     /**
