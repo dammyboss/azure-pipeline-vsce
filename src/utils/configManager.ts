@@ -72,103 +72,56 @@ export class ConfigManager {
      */
     async promptForConfiguration(): Promise<boolean> {
         try {
-            // Try automatic organization discovery first
+            // Automatically discover organizations
             let organizations: Organization[] = [];
-            let useManualInput = false;
 
             try {
                 organizations = await vscode.window.withProgress(
                     {
                         location: vscode.ProgressLocation.Notification,
-                        title: 'Discovering Azure DevOps organizations...',
+                        title: 'Discovering your Azure DevOps organizations...',
                         cancellable: false
                     },
                     async () => {
                         return await this.client.getOrganizations();
                     }
                 );
-            } catch (error) {
-                console.log('Auto-discovery failed, falling back to manual input:', error);
-                useManualInput = true;
+            } catch (error: any) {
+                // Auto-discovery failed
+                const errorMsg = error.message || 'Unknown error';
+                vscode.window.showErrorMessage(
+                    `Failed to discover organizations: ${errorMsg}. Please make sure you have access to at least one Azure DevOps organization.`
+                );
+                return false;
             }
 
-            let selectedOrgUrl: string = '';
-            let selectedOrgName: string = '';
-
-            if (!useManualInput && organizations && organizations.length > 0) {
-                // Show discovered organizations
-                const orgItems = organizations.map(org => ({
-                    label: org.accountName,
-                    description: org.accountUri,
-                    org
-                }));
-
-                // Add manual input option
-                orgItems.push({
-                    label: '$(edit) Enter organization manually',
-                    description: 'Type your organization name',
-                    org: null as any
-                });
-
-                const selectedOrg = await vscode.window.showQuickPick(orgItems, {
-                    placeHolder: 'Select an Azure DevOps organization',
-                    ignoreFocusOut: true
-                });
-
-                if (!selectedOrg) {
-                    return false;
-                }
-
-                if (selectedOrg.org === null) {
-                    useManualInput = true;
-                } else {
-                    selectedOrgUrl = selectedOrg.org.accountUri;
-                    selectedOrgName = selectedOrg.org.accountName;
-                }
-            } else {
-                useManualInput = true;
+            if (!organizations || organizations.length === 0) {
+                vscode.window.showWarningMessage(
+                    'No Azure DevOps organizations found. Please make sure you have access to at least one organization.'
+                );
+                return false;
             }
 
-            // Manual organization input
-            if (useManualInput) {
-                const orgInput = await vscode.window.showInputBox({
-                    prompt: 'Enter your Azure DevOps organization name or URL',
-                    placeHolder: 'e.g., mycompany or https://dev.azure.com/mycompany',
-                    ignoreFocusOut: true,
-                    validateInput: (value) => {
-                        if (!value || value.trim().length === 0) {
-                            return 'Organization name cannot be empty';
-                        }
-                        return null;
-                    }
-                });
+            // Show discovered organizations
+            const orgItems = organizations.map(org => ({
+                label: org.accountName,
+                description: org.accountUri,
+                detail: `Select this organization`,
+                org
+            }));
 
-                if (!orgInput) {
-                    return false;
-                }
+            const selectedOrg = await vscode.window.showQuickPick(orgItems, {
+                placeHolder: `Select an organization (found ${organizations.length})`,
+                ignoreFocusOut: true,
+                matchOnDescription: true
+            });
 
-                // Parse organization name from input
-                let orgName = orgInput.trim();
-
-                // If user provided a URL, extract the organization name
-                if (orgName.includes('dev.azure.com/')) {
-                    const match = orgName.match(/dev\.azure\.com\/([^\/]+)/);
-                    if (match) {
-                        orgName = match[1];
-                    }
-                } else if (orgName.includes('visualstudio.com')) {
-                    const match = orgName.match(/([^\.]+)\.visualstudio\.com/);
-                    if (match) {
-                        orgName = match[1];
-                    }
-                }
-
-                // Remove any trailing slashes
-                orgName = orgName.replace(/\/+$/, '');
-
-                selectedOrgUrl = `https://dev.azure.com/${orgName}`;
-                selectedOrgName = orgName;
+            if (!selectedOrg) {
+                return false;
             }
+
+            const selectedOrgUrl = selectedOrg.org.accountUri;
+            const selectedOrgName = selectedOrg.org.accountName;
 
             // Verify organization by trying to get projects
             let projects: Project[];

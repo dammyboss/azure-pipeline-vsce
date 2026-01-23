@@ -81,10 +81,21 @@ export class AzureDevOpsClient {
         if (error.response) {
             const status = error.response.status;
             const message = (error.response.data as any)?.message || error.message;
+            const url = error.config?.url || '';
 
             // Don't show notifications for 404s - they're often expected (no timeline, no logs, etc.)
             if (status === 404) {
-                console.log('Resource not found (404):', error.config?.url);
+                console.log('Resource not found (404):', url);
+                return;
+            }
+
+            // Don't show auth errors for organization discovery endpoints - those are expected to fail
+            // during auto-discovery attempts
+            if (status === 401 && (
+                url.includes('app.vssps.visualstudio.com') ||
+                url.includes('management.azure.com')
+            )) {
+                console.log('Auto-discovery endpoint returned 401 (expected):', url);
                 return;
             }
 
@@ -125,103 +136,52 @@ export class AzureDevOpsClient {
      */
     async getOrganizations(): Promise<Organization[]> {
         try {
-            // Get user profile which contains the public alias
+            console.log('[Azure DevOps] Discovering organizations...');
+
+            // Step 1: Get user profile to get the member ID
             const profileResponse = await this.axiosInstance.get(
                 'https://app.vssps.visualstudio.com/_apis/profile/profiles/me',
                 {
                     params: {
-                        'api-version': '7.1-preview.2',
-                        'details': true
+                        'api-version': '7.1'
                     }
                 }
             );
 
-            const publicAlias = profileResponse.data.publicAlias;
-            const emailAddress = profileResponse.data.emailAddress;
-            const coreAttributes = profileResponse.data.coreAttributes;
+            const memberId = profileResponse.data.id;
+            console.log('[Azure DevOps] Got member ID:', memberId);
 
-            // Try to get organizations through the resource areas endpoint
-            // This endpoint lists all Azure DevOps instances the user has access to
-            const resourceResponse = await this.axiosInstance.get(
-                `https://app.vssps.visualstudio.com/_apis/resourceareas`,
-                { params: { 'api-version': '7.1-preview.1' } }
+            // Step 2: Use the member ID to get all accounts/organizations
+            const accountsResponse = await this.axiosInstance.get(
+                'https://app.vssps.visualstudio.com/_apis/accounts',
+                {
+                    params: {
+                        'memberId': memberId,
+                        'api-version': '7.1'
+                    }
+                }
             );
 
-            // Alternative: Try the accounts endpoint with the user's email
-            let organizations: Organization[] = [];
+            console.log('[Azure DevOps] Accounts response:', accountsResponse.data);
 
-            if (emailAddress) {
-                try {
-                    const accountsResponse = await this.axiosInstance.get(
-                        `https://app.vssps.visualstudio.com/_apis/accounts`,
-                        {
-                            params: {
-                                'memberid': emailAddress,
-                                'api-version': '7.1-preview.1'
-                            }
-                        }
-                    );
+            if (accountsResponse.data && accountsResponse.data.count > 0) {
+                const organizations = accountsResponse.data.value.map((account: any) => ({
+                    accountId: account.accountId,
+                    accountName: account.accountName,
+                    accountUri: account.accountUri || `https://dev.azure.com/${account.accountName}`
+                }));
 
-                    if (accountsResponse.data.value && accountsResponse.data.value.length > 0) {
-                        return accountsResponse.data.value;
-                    }
-                } catch (err) {
-                    console.log('Failed to get accounts by email:', err);
-                }
+                console.log('[Azure DevOps] Found organizations:', organizations);
+                return organizations;
             }
 
-            // If we have the publicAlias, try that
-            if (publicAlias) {
-                try {
-                    const accountsResponse = await this.axiosInstance.get(
-                        `https://app.vssps.visualstudio.com/_apis/accounts`,
-                        {
-                            params: {
-                                'ownerId': publicAlias,
-                                'api-version': '7.1-preview.1'
-                            }
-                        }
-                    );
+            // If no organizations found, throw an error
+            throw new Error('No Azure DevOps organizations found for your account.');
 
-                    if (accountsResponse.data.value && accountsResponse.data.value.length > 0) {
-                        return accountsResponse.data.value;
-                    }
-                } catch (err) {
-                    console.log('Failed to get accounts by publicAlias:', err);
-                }
-            }
-
-            // Last resort: Try using Microsoft Graph to get organizations
-            // The access token might work with Graph API
-            try {
-                const graphResponse = await this.axiosInstance.get(
-                    'https://management.azure.com/providers/Microsoft.VisualStudio/accounts',
-                    {
-                        params: {
-                            'api-version': '2014-04-01-preview'
-                        }
-                    }
-                );
-
-                if (graphResponse.data.value) {
-                    return graphResponse.data.value.map((account: any) => ({
-                        accountId: account.id,
-                        accountName: account.name,
-                        accountUri: `https://dev.azure.com/${account.name}`
-                    }));
-                }
-            } catch (err) {
-                console.log('Failed to get accounts via Azure Management API:', err);
-            }
-
-            throw new Error(
-                'Unable to automatically discover organizations. This might be due to API restrictions. ' +
-                'Please use manual organization setup instead.'
-            );
-
-        } catch (error) {
-            console.error('Error getting organizations:', error);
-            throw error;
+        } catch (error: any) {
+            console.error('[Azure DevOps] Error discovering organizations:', error.message);
+            console.error('[Azure DevOps] Error details:', error.response?.data);
+            throw new Error(`Unable to discover organizations: ${error.message}`);
         }
     }
 
