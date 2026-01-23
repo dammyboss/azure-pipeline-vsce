@@ -6,9 +6,9 @@ import { formatTimeAgo, formatDurationBetween } from '../utils/formatDuration';
 interface PipelineRunFilter {
     searchText?: string;
     state?: string[];
-    branch?: string;
-    requestedFor?: string;
-    repository?: string;
+    branch?: string[];
+    requestedFor?: string[];
+    repository?: string[];
 }
 
 /**
@@ -216,25 +216,25 @@ export class PipelineRunsPanel {
         }
 
         // Filter by branch
-        if (this.currentFilter.branch) {
+        if (this.currentFilter.branch && this.currentFilter.branch.length > 0) {
             const branch = (run.sourceBranch || '').replace('refs/heads/', '').toLowerCase();
-            if (!branch.includes(this.currentFilter.branch.toLowerCase())) {
+            if (!this.currentFilter.branch.some(b => branch.includes(b.toLowerCase()))) {
                 return false;
             }
         }
 
         // Filter by requested for
-        if (this.currentFilter.requestedFor) {
+        if (this.currentFilter.requestedFor && this.currentFilter.requestedFor.length > 0) {
             const requestedFor = (run.requestedFor?.displayName || run.requestedBy?.displayName || '').toLowerCase();
-            if (!requestedFor.includes(this.currentFilter.requestedFor.toLowerCase())) {
+            if (!this.currentFilter.requestedFor.some(u => requestedFor.includes(u.toLowerCase()))) {
                 return false;
             }
         }
 
         // Filter by repository
-        if (this.currentFilter.repository) {
+        if (this.currentFilter.repository && this.currentFilter.repository.length > 0) {
             const repoName = (run.repository?.name || '').toLowerCase();
-            if (!repoName.includes(this.currentFilter.repository.toLowerCase())) {
+            if (!this.currentFilter.repository.some(r => repoName.includes(r.toLowerCase()))) {
                 return false;
             }
         }
@@ -575,39 +575,42 @@ export class PipelineRunsPanel {
         </div>
 
         <div class="filter-dropdown" id="branchDropdown">
-            <button class="filter-dropdown-btn ${this.currentFilter.branch ? 'active' : ''}" onclick="toggleDropdown('branchDropdown')">
+            <button class="filter-dropdown-btn ${this.currentFilter.branch && this.currentFilter.branch.length > 0 ? 'active' : ''}" onclick="toggleDropdown('branchDropdown')">
                 Branch <span>▼</span>
             </button>
             <div class="filter-dropdown-content">
-                ${uniqueBranches.length > 0 ? uniqueBranches.map(branch => `
-                    <div class="filter-option" onclick="updateBranchFilter('${this.escapeHtml(branch)}'); toggleDropdown('branchDropdown');">
-                        <span>${this.escapeHtml(branch)}</span>
+                ${uniqueBranches.length > 0 ? uniqueBranches.map((branch, index) => `
+                    <div class="filter-option">
+                        <input type="checkbox" id="branch-${index}" value="${this.escapeHtml(branch)}" ${this.currentFilter.branch?.includes(branch) ? 'checked' : ''} onchange="updateBranchFilter()">
+                        <label for="branch-${index}">${this.escapeHtml(branch)}</label>
                     </div>
                 `).join('') : '<div class="filter-option" style="opacity: 0.6;">No branches available</div>'}
             </div>
         </div>
 
         <div class="filter-dropdown" id="requestedForDropdown">
-            <button class="filter-dropdown-btn ${this.currentFilter.requestedFor ? 'active' : ''}" onclick="toggleDropdown('requestedForDropdown')">
+            <button class="filter-dropdown-btn ${this.currentFilter.requestedFor && this.currentFilter.requestedFor.length > 0 ? 'active' : ''}" onclick="toggleDropdown('requestedForDropdown')">
                 Requested for <span>▼</span>
             </button>
             <div class="filter-dropdown-content">
-                ${uniqueUsers.length > 0 ? uniqueUsers.map(user => `
-                    <div class="filter-option" onclick="updateRequestedForFilter('${this.escapeHtml(user)}'); toggleDropdown('requestedForDropdown');">
-                        <span>${this.escapeHtml(user)}</span>
+                ${uniqueUsers.length > 0 ? uniqueUsers.map((user, index) => `
+                    <div class="filter-option">
+                        <input type="checkbox" id="user-${index}" value="${this.escapeHtml(user)}" ${this.currentFilter.requestedFor?.includes(user) ? 'checked' : ''} onchange="updateRequestedForFilter()">
+                        <label for="user-${index}">${this.escapeHtml(user)}</label>
                     </div>
                 `).join('') : '<div class="filter-option" style="opacity: 0.6;">No users available</div>'}
             </div>
         </div>
 
         <div class="filter-dropdown" id="repositoryDropdown">
-            <button class="filter-dropdown-btn ${this.currentFilter.repository ? 'active' : ''}" onclick="toggleDropdown('repositoryDropdown')">
+            <button class="filter-dropdown-btn ${this.currentFilter.repository && this.currentFilter.repository.length > 0 ? 'active' : ''}" onclick="toggleDropdown('repositoryDropdown')">
                 Repository <span>▼</span>
             </button>
             <div class="filter-dropdown-content">
-                ${uniqueRepositories.length > 0 ? uniqueRepositories.map(repo => `
-                    <div class="filter-option" onclick="updateRepositoryFilter('${this.escapeHtml(repo)}'); toggleDropdown('repositoryDropdown');">
-                        <span>${this.escapeHtml(repo)}</span>
+                ${uniqueRepositories.length > 0 ? uniqueRepositories.map((repo, index) => `
+                    <div class="filter-option">
+                        <input type="checkbox" id="repo-${index}" value="${this.escapeHtml(repo)}" ${this.currentFilter.repository?.includes(repo) ? 'checked' : ''} onchange="updateRepositoryFilter()">
+                        <label for="repo-${index}">${this.escapeHtml(repo)}</label>
                     </div>
                 `).join('') : '<div class="filter-option" style="opacity: 0.6;">No repositories available</div>'}
             </div>
@@ -749,18 +752,30 @@ export class PipelineRunsPanel {
             applyFilter();
         }
 
-        function updateBranchFilter(value) {
-            currentFilter.branch = value || undefined;
+        function updateBranchFilter() {
+            const branches = [];
+            document.querySelectorAll('[id^="branch-"]:checked').forEach(checkbox => {
+                branches.push(checkbox.value);
+            });
+            currentFilter.branch = branches.length > 0 ? branches : undefined;
             applyFilter();
         }
 
-        function updateRequestedForFilter(value) {
-            currentFilter.requestedFor = value || undefined;
+        function updateRequestedForFilter() {
+            const users = [];
+            document.querySelectorAll('[id^="user-"]:checked').forEach(checkbox => {
+                users.push(checkbox.value);
+            });
+            currentFilter.requestedFor = users.length > 0 ? users : undefined;
             applyFilter();
         }
 
-        function updateRepositoryFilter(value) {
-            currentFilter.repository = value || undefined;
+        function updateRepositoryFilter() {
+            const repos = [];
+            document.querySelectorAll('[id^="repo-"]:checked').forEach(checkbox => {
+                repos.push(checkbox.value);
+            });
+            currentFilter.repository = repos.length > 0 ? repos : undefined;
             applyFilter();
         }
 
