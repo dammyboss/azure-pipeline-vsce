@@ -730,30 +730,15 @@ export class PipelineCommands {
                     cancellable: false
                 },
                 async () => {
-                    // Fetch log content from the URL
-                    const response = await this.client.axiosInstance.get<{ count: number; value: string[] }>(
-                        record.log!.url
-                    );
+                    // Fetch log content from the URL using the API client
+                    const logData = await this.client.getLogContentFromUrl(record.log!.url);
 
-                    // Check if response has the expected format
-                    let formattedLog: string;
-
-                    if (response.data && Array.isArray(response.data.value)) {
-                        // Azure DevOps returns logs as an array of lines with timestamps
-                        // Format: "2024-01-23T14:30:45.1234567Z <log content>"
-                        // Remove the first 29 characters (timestamp) from each line
-                        formattedLog = response.data.value
-                            .map(line => line.length > 29 ? line.slice(29) : line)
-                            .join('\n');
-                    } else if (typeof response.data === 'string') {
-                        // Fallback: if it's a string, split and format
-                        formattedLog = response.data
-                            .split('\n')
-                            .map(line => line.length > 29 && line[29] === ' ' ? line.slice(30) : line)
-                            .join('\n');
-                    } else {
-                        formattedLog = String(response.data);
-                    }
+                    // Azure DevOps returns logs as an array of lines with timestamps
+                    // Format: "2024-01-23T14:30:45.1234567Z <log content>"
+                    // Remove the first 29 characters (timestamp) from each line
+                    const formattedLog = logData.value
+                        .map((line: string) => line.length > 29 ? line.slice(29) : line)
+                        .join('\n');
 
                     // Open in text document with proper syntax highlighting
                     const document = await vscode.workspace.openTextDocument({

@@ -538,6 +538,14 @@ export class AzureDevOpsClient {
     }
 
     /**
+     * Get log content from a direct URL
+     */
+    async getLogContentFromUrl(logUrl: string): Promise<{ count: number; value: string[] }> {
+        const response = await this.axiosInstance.get<{ count: number; value: string[] }>(logUrl);
+        return response.data;
+    }
+
+    /**
      * Get timeline for a run (detailed task/stage information)
      */
     async getRunTimeline(runId: number): Promise<Timeline> {
