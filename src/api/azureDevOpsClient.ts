@@ -165,11 +165,26 @@ export class AzureDevOpsClient {
             console.log('[Azure DevOps] Accounts response:', accountsResponse.data);
 
             if (accountsResponse.data && accountsResponse.data.count > 0) {
-                const organizations = accountsResponse.data.value.map((account: any) => ({
-                    accountId: account.accountId,
-                    accountName: account.accountName,
-                    accountUri: account.accountUri || `https://dev.azure.com/${account.accountName}`
-                }));
+                const organizations = accountsResponse.data.value.map((account: any) => {
+                    // Ensure we always construct a proper dev.azure.com URL
+                    let accountUri = account.accountUri;
+
+                    // If accountUri is missing or not in the right format, construct it
+                    if (!accountUri || !accountUri.includes('dev.azure.com')) {
+                        accountUri = `https://dev.azure.com/${account.accountName}`;
+                    }
+
+                    // Remove any trailing slashes
+                    accountUri = accountUri.replace(/\/+$/, '');
+
+                    console.log(`[Azure DevOps] Organization: ${account.accountName} -> ${accountUri}`);
+
+                    return {
+                        accountId: account.accountId,
+                        accountName: account.accountName,
+                        accountUri: accountUri
+                    };
+                });
 
                 console.log('[Azure DevOps] Found organizations:', organizations);
                 return organizations;
@@ -189,11 +204,25 @@ export class AzureDevOpsClient {
      * Get all projects in an organization
      */
     async getProjects(organizationUrl: string): Promise<Project[]> {
-        const response = await this.axiosInstance.get(
-            `${organizationUrl}/_apis/projects`,
-            { params: { 'api-version': '7.1-preview.4' } }
-        );
-        return response.data.value;
+        // Ensure the URL is properly formatted
+        const cleanUrl = organizationUrl.replace(/\/+$/, ''); // Remove trailing slashes
+        const projectsUrl = `${cleanUrl}/_apis/projects`;
+
+        console.log('[Azure DevOps] Getting projects from:', projectsUrl);
+
+        try {
+            const response = await this.axiosInstance.get(
+                projectsUrl,
+                { params: { 'api-version': '7.1' } }
+            );
+
+            console.log('[Azure DevOps] Projects response:', response.data);
+            return response.data.value || [];
+        } catch (error: any) {
+            console.error('[Azure DevOps] Failed to get projects:', error.message);
+            console.error('[Azure DevOps] Error response:', error.response?.data);
+            throw error;
+        }
     }
 
     // ==================== Pipelines ====================
