@@ -38,26 +38,22 @@
         {
           "id": "azurePipelines",
           "name": "Pipelines",
-          "contextualTitle": "Azure DevOps Pipelines",
-          "when": "azurePipelines.signedIn"
+          "contextualTitle": "Azure DevOps Pipelines"
         },
         {
           "id": "azurePipelinesRuns",
           "name": "Recent Runs",
-          "contextualTitle": "Pipeline Runs",
-          "when": "azurePipelines.signedIn"
+          "contextualTitle": "Pipeline Runs"
         },
         {
           "id": "azurePipelinesStages",
           "name": "Stages",
-          "contextualTitle": "Pipeline Stages",
-          "when": "azurePipelines.signedIn"
+          "contextualTitle": "Pipeline Stages"
         },
         {
           "id": "azurePipelinesServiceConnections",
           "name": "Service Connections",
-          "contextualTitle": "Service Connections",
-          "when": "azurePipelines.signedIn"
+          "contextualTitle": "Service Connections"
         }
       ]
     },
