@@ -103,6 +103,11 @@ export class PipelineTreeItem extends vscode.TreeItem {
         const statusStr = String(run.status || '').toLowerCase();
         const resultStr = String(run.result || '').toLowerCase();
 
+        // Debug log for in-progress detection
+        if (statusStr.includes('progress') || statusStr === 'notstarted') {
+            console.log(`Pipeline ${this.pipeline.name} is running: status="${statusStr}", result="${resultStr}"`);
+        }
+
         // Check if running
         if (statusStr === 'inprogress' || statusStr === 'notstarted') {
             return new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('charts.blue'));

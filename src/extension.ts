@@ -101,10 +101,11 @@ export async function activate(context: vscode.ExtensionContext) {
         updateStatusBar();
     }
 
-    // Set up auto-refresh for runs (every 30 seconds)
+    // Set up auto-refresh for runs and pipelines (every 30 seconds)
     const refreshInterval = setInterval(() => {
         if (configManager.isConfigured()) {
             runsProvider.refresh();
+            pipelinesTreeProvider.refresh();
         }
     }, 30000);
 
