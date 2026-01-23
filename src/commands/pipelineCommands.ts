@@ -5,7 +5,8 @@ import { RunsTreeProvider } from '../views/runsTreeView';
 import { PipelinesTreeProvider } from '../views/pipelinesTreeView';
 import { RunDetailsPanel } from '../webviews/runDetailsPanel';
 import { LiveLogPanel } from '../webviews/liveLogPanel';
-import { RunPipelinePanel } from '../webviews/runPipelinePanel';
+import { RunPipelineModal } from '../webviews/runPipelineModal';
+import { RenamePipelineModal } from '../webviews/renamePipelineModal';
 
 /**
  * Pipeline command handlers
@@ -77,7 +78,7 @@ export class PipelineCommands {
     }
 
     /**
-     * Run a pipeline - shows full run form
+     * Run a pipeline - shows inline modal form
      */
     private async runPipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
         try {
@@ -102,15 +103,20 @@ export class PipelineCommands {
                 }
             }
 
-            // Show the run pipeline panel with form
-            await RunPipelinePanel.show(this.client, pipeline, sourceBranch);
-
-            // Refresh runs view after panel is shown
-            setTimeout(() => this.runsProvider.refresh(), 1000);
+            // Create a lightweight panel with just the modal form
+            await this.showRunPipelineModal(pipeline, sourceBranch);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to open run pipeline form: ${errorMessage}`);
         }
+    }
+
+    /**
+     * Show run pipeline modal form
+     */
+    private async showRunPipelineModal(pipeline: Pipeline, sourceBranch?: string): Promise<void> {
+        // Show lightweight modal that slides in from the right
+        await RunPipelineModal.show(this.client, pipeline, sourceBranch);
     }
 
     /**
@@ -575,106 +581,14 @@ export class PipelineCommands {
                 return;
             }
 
-            // Step 1: Enter new name
-            const newName = await vscode.window.showInputBox({
-                prompt: 'Enter new pipeline name',
-                value: pipeline.name,
-                placeHolder: 'Pipeline name',
-                ignoreFocusOut: true,
-                validateInput: (value) => {
-                    if (!value || value.trim().length === 0) {
-                        return 'Name cannot be empty.';
-                    }
-                    return null;
-                }
+            // Show centered modal form
+            await RenamePipelineModal.show(this.client, pipeline, () => {
+                // Refresh pipelines view on success
+                this.pipelinesProvider.refresh();
             });
-
-            if (!newName || newName === pipeline.name) {
-                // User cancelled or name unchanged, ask about folder only
-                if (newName === undefined) {
-                    return;
-                }
-            }
-
-            // Step 2: Select folder (optional)
-            const folderChoice = await vscode.window.showQuickPick(
-                [
-                    {
-                        label: '$(folder) Keep current folder',
-                        description: pipeline.folder || '\\',
-                        value: 'keep'
-                    },
-                    {
-                        label: '$(folder) Move to root',
-                        value: 'root'
-                    },
-                    {
-                        label: '$(folder) Specify folder path',
-                        value: 'custom'
-                    }
-                ],
-                {
-                    placeHolder: 'Select folder location',
-                    ignoreFocusOut: true
-                }
-            );
-
-            if (!folderChoice) {
-                return;
-            }
-
-            let newFolder: string | undefined;
-
-            if (folderChoice.value === 'root') {
-                newFolder = '\\';
-            } else if (folderChoice.value === 'custom') {
-                newFolder = await vscode.window.showInputBox({
-                    prompt: 'Enter folder path (e.g., \\MyFolder)',
-                    value: pipeline.folder || '\\',
-                    placeHolder: '\\MyFolder',
-                    ignoreFocusOut: true
-                });
-
-                if (newFolder === undefined) {
-                    return;
-                }
-
-                // Normalize folder path to start with backslash
-                if (newFolder && !newFolder.startsWith('\\')) {
-                    newFolder = '\\' + newFolder;
-                }
-            } else {
-                // Keep current folder
-                newFolder = undefined;
-            }
-
-            // Only update if something changed
-            if ((newName && newName !== pipeline.name) || newFolder !== undefined) {
-                await vscode.window.withProgress(
-                    {
-                        location: vscode.ProgressLocation.Notification,
-                        title: 'Updating pipeline...',
-                        cancellable: false
-                    },
-                    async () => {
-                        await this.client.updatePipeline(
-                            pipeline.id,
-                            newName && newName !== pipeline.name ? newName : undefined,
-                            newFolder
-                        );
-
-                        vscode.window.showInformationMessage(
-                            `Pipeline updated successfully: ${newName || pipeline.name}`
-                        );
-
-                        // Refresh pipelines view
-                        this.pipelinesProvider.refresh();
-                    }
-                );
-            }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            vscode.window.showErrorMessage(`Failed to update pipeline: ${errorMessage}`);
+            vscode.window.showErrorMessage(`Failed to open rename pipeline form: ${errorMessage}`);
         }
     }
 
@@ -733,30 +647,31 @@ export class PipelineCommands {
                 return;
             }
 
-            // Get the pipeline to find its YAML file path
-            const pipelineDetails = await this.client.getPipeline(pipeline.id);
+            // Get the YAML content directly using pipeline ID
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Loading pipeline YAML...',
+                    cancellable: false
+                },
+                async () => {
+                    const yaml = await this.client.getPipelineYaml(pipeline.id);
 
-            if (!pipelineDetails.repository?.id) {
-                vscode.window.showErrorMessage('Pipeline repository information not found');
-                return;
-            }
+                    // Open in VSCode editor with YAML language support
+                    const doc = await vscode.workspace.openTextDocument({
+                        content: yaml,
+                        language: 'yaml'
+                    });
 
-            // Get the YAML content
-            const yaml = await this.client.getPipelineYaml(pipeline.id);
+                    await vscode.window.showTextDocument(doc, {
+                        preview: false,
+                        viewColumn: vscode.ViewColumn.Active
+                    });
 
-            // Open in VSCode editor with YAML language support
-            const doc = await vscode.workspace.openTextDocument({
-                content: yaml,
-                language: 'yaml'
-            });
-
-            await vscode.window.showTextDocument(doc, {
-                preview: false,
-                viewColumn: vscode.ViewColumn.Active
-            });
-
-            vscode.window.showInformationMessage(
-                'Note: This is a read-only view. To modify the pipeline, edit the YAML file in your repository.'
+                    vscode.window.showInformationMessage(
+                        'Note: This is a read-only view. To modify the pipeline, edit the YAML file in your repository.'
+                    );
+                }
             );
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';

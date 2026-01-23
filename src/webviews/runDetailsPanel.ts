@@ -195,11 +195,86 @@ export class RunDetailsPanel {
         }
     }
 
-    private async fetchStages(pipelineId: number): Promise<string[]> {
+    private async fetchStages(pipelineId: number): Promise<Array<{ name: string; dependsOn?: string[] }>> {
         try {
             const yaml = await this.client.getPipelineYaml(pipelineId);
-            const stageMatches = yaml.matchAll(/^[-\s]*stage:\s*(.+)$/gm);
-            const stages = Array.from(stageMatches, m => m[1].trim().replace(/['"]/g, ''));
+
+            // Extract stages with their dependencies
+            const stages: Array<{ name: string; dependsOn?: string[] }> = [];
+            const lines = yaml.split('\n');
+
+            let currentStage: { name: string; dependsOn?: string[] } | null = null;
+            let inDependsOn = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                // Match stage definition
+                const stageMatch = line.match(/^[-\s]*stage:\s*(.+)$/);
+                if (stageMatch) {
+                    if (currentStage) {
+                        stages.push(currentStage);
+                    }
+                    currentStage = {
+                        name: stageMatch[1].trim().replace(/['"]/g, '')
+                    };
+                    inDependsOn = false;
+                    continue;
+                }
+
+                // Match dependsOn (single line)
+                if (currentStage && line.match(/^\s*dependsOn:\s*(.+)$/)) {
+                    const dependsMatch = line.match(/^\s*dependsOn:\s*(.+)$/);
+                    if (dependsMatch) {
+                        const depValue = dependsMatch[1].trim();
+                        if (depValue.startsWith('[')) {
+                            // Array format: dependsOn: [stage1, stage2]
+                            const deps = depValue
+                                .replace(/[\[\]]/g, '')
+                                .split(',')
+                                .map(d => d.trim().replace(/['"]/g, ''))
+                                .filter(d => d.length > 0);
+                            currentStage.dependsOn = deps;
+                        } else {
+                            // Single value: dependsOn: stage1
+                            currentStage.dependsOn = [depValue.replace(/['"]/g, '')];
+                        }
+                        inDependsOn = false;
+                    }
+                    continue;
+                }
+
+                // Match dependsOn (multi-line array start)
+                if (currentStage && line.match(/^\s*dependsOn:\s*$/)) {
+                    inDependsOn = true;
+                    currentStage.dependsOn = [];
+                    continue;
+                }
+
+                // Match array items under dependsOn
+                if (inDependsOn && line.match(/^\s*-\s*(.+)$/)) {
+                    const itemMatch = line.match(/^\s*-\s*(.+)$/);
+                    if (itemMatch && currentStage) {
+                        const dep = itemMatch[1].trim().replace(/['"]/g, '');
+                        if (!currentStage.dependsOn) {
+                            currentStage.dependsOn = [];
+                        }
+                        currentStage.dependsOn.push(dep);
+                    }
+                    continue;
+                }
+
+                // Check if we've left the dependsOn section
+                if (inDependsOn && line.match(/^\s*\w+:/)) {
+                    inDependsOn = false;
+                }
+            }
+
+            // Add the last stage if exists
+            if (currentStage) {
+                stages.push(currentStage);
+            }
+
             return stages;
         } catch (error) {
             return [];
@@ -1623,17 +1698,44 @@ export class RunDetailsPanel {
             // Populate stages
             const stagesContainer = document.getElementById('modalStagesGroup');
             if (stages && stages.length > 0) {
-                stagesContainer.innerHTML = stages.map((stage, index) => \`
+                let stagesHtml = \`
+                    <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-bottom: 12px;">
+                        Deselect stages you want to skip for this run
+                    </div>
+                    <div class="modal-checkbox-item" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--vscode-panel-border);">
+                        <input type="checkbox" id="modal-stage-all" checked onchange="toggleAllStages(this)">
+                        <label for="modal-stage-all" style="font-weight: 600;">Run all stages</label>
+                    </div>
+                \`;
+                stagesHtml += stages.map((stage, index) => \`
                     <div class="modal-checkbox-item">
-                        <input type="checkbox" id="modal-stage-\${index}" value="\${stage}" checked>
-                        <label for="modal-stage-\${index}">\${stage}</label>
+                        <input type="checkbox" class="stage-checkbox" id="modal-stage-\${index}" value="\${stage.name}" checked onchange="updateRunAllCheckbox()">
+                        <label for="modal-stage-\${index}">
+                            <div>\${stage.name}</div>
+                            \${stage.dependsOn && stage.dependsOn.length > 0 ? \`
+                                <div style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 2px;">
+                                    Depends on: \${stage.dependsOn.join(', ')}
+                                </div>
+                            \` : \`
+                                <div style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 2px;">
+                                    No dependencies
+                                </div>
+                            \`}
+                        </label>
                     </div>
                 \`).join('');
+                stagesContainer.innerHTML = stagesHtml;
                 document.getElementById('modalStagesSection').style.display = 'block';
                 document.getElementById('modalNoStagesText').style.display = 'none';
             } else {
-                document.getElementById('modalStagesSection').style.display = 'none';
-                document.getElementById('modalNoStagesText').style.display = 'block';
+                stagesContainer.innerHTML = \`
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px;">
+                        <div style="color: var(--vscode-charts-blue); font-size: 18px;">ℹ</div>
+                        <div style="font-size: 13px;">Configuration is only available for multi-stage pipelines.</div>
+                    </div>
+                \`;
+                document.getElementById('modalStagesSection').style.display = 'block';
+                document.getElementById('modalNoStagesText').style.display = 'none';
             }
 
             // Populate variables
@@ -1653,8 +1755,9 @@ export class RunDetailsPanel {
                 document.getElementById('modalNoVariablesText').style.display = 'block';
             }
 
-            // Store all stages for later
-            modal.dataset.allStages = JSON.stringify(stages || []);
+            // Store all stages for later (convert to just names if needed)
+            const stageNames = stages && stages.length > 0 ? stages.map(s => s.name || s) : [];
+            modal.dataset.allStages = JSON.stringify(stageNames);
 
             // Show modal
             modal.classList.add('show');
@@ -1664,14 +1767,30 @@ export class RunDetailsPanel {
             document.getElementById('runPipelineModal').classList.remove('show');
         }
 
+        function toggleAllStages(checkbox) {
+            const stageCheckboxes = document.querySelectorAll('.stage-checkbox');
+            stageCheckboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+        }
+
+        function updateRunAllCheckbox() {
+            const allCheckbox = document.getElementById('modal-stage-all');
+            const stageCheckboxes = document.querySelectorAll('.stage-checkbox');
+            const allChecked = Array.from(stageCheckboxes).every(cb => cb.checked);
+            if (allCheckbox) {
+                allCheckbox.checked = allChecked;
+            }
+        }
+
         function submitRunPipeline() {
             const branch = document.getElementById('modalBranchSelect').value;
             const commit = document.getElementById('modalCommitInput').value.trim();
             const enableDiagnostics = document.getElementById('modalEnableDiagnostics').checked;
 
-            // Collect selected stages
+            // Collect selected stages (exclude the "Run all stages" checkbox)
             const stagesToRun = [];
-            document.querySelectorAll('#modalStagesGroup input[type="checkbox"]:checked').forEach(checkbox => {
+            document.querySelectorAll('.stage-checkbox:checked').forEach(checkbox => {
                 stagesToRun.push(checkbox.value);
             });
 
@@ -1685,7 +1804,8 @@ export class RunDetailsPanel {
             });
 
             const modal = document.getElementById('runPipelineModal');
-            const allStages = JSON.parse(modal.dataset.allStages || '[]');
+            const allStagesData = JSON.parse(modal.dataset.allStages || '[]');
+            const allStages = allStagesData.map ? allStagesData.map(s => s.name || s) : allStagesData;
 
             vscode.postMessage({
                 command: 'runPipeline',
