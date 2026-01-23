@@ -3,7 +3,7 @@
   "displayName": "Azure DevOps Pipelines",
   "description": "Complete Azure DevOps Pipeline management directly from VSCode",
   "version": "0.1.0",
-  "publisher": "your-publisher-name",
+  "publisher": "Damilola",
   "icon": "resources/icons/extension-icon.png",
   "engines": {
     "vscode": "^1.85.0"
@@ -29,7 +29,7 @@
         {
           "id": "azure-pipelines-container",
           "title": "Azure Pipelines",
-          "icon": "resources/azure-devops.svg"
+          "icon": "resources/azure-pipelines-icon.svg"
         }
       ]
     },
@@ -62,33 +62,6 @@
         }
       ]
     },
-    "viewsWelcome": [
-      {
-        "view": "azurePipelines",
-        "contents": "# Welcome to Azure DevOps Pipelines! 🚀\n\nManage your CI/CD pipelines directly from VS Code.\n\n## Get Started\n\n1. Sign in with your Microsoft account\n2. Select your organization and project\n3. Start running and monitoring pipelines!\n\n[$(sign-in) Sign In](command:azurePipelines.signIn)\n\n---\n\n✨ **Features:**\n- Run pipelines with custom variables\n- View real-time logs and stages\n- Manage service connections\n- Filter and search runs\n\n💡 **No PAT required** - We use secure OAuth authentication",
-        "when": "!azurePipelines.signedIn"
-      },
-      {
-        "view": "azurePipelines",
-        "contents": "# No Pipelines Found\n\nYour project doesn't have any pipelines yet.\n\n[$(refresh) Refresh](command:azurePipelines.refreshPipelines)\n\n[$(add) Create Pipeline](command:azurePipelines.createPipeline)\n\n---\n\n💡 **Tip:** Create a YAML file in your repository to define a pipeline.",
-        "when": "azurePipelines.signedIn"
-      },
-      {
-        "view": "azurePipelinesRuns",
-        "contents": "# No Recent Runs\n\nNo pipeline runs to display yet.\n\nRun a pipeline from the **Pipelines** view to see it here.\n\n[$(refresh) Refresh](command:azurePipelines.refreshRuns)\n\n---\n\n💡 **Tip:** Click the ▶️ icon next to any pipeline to run it.",
-        "when": "azurePipelines.signedIn"
-      },
-      {
-        "view": "azurePipelinesStages",
-        "contents": "# No Stages Loaded\n\nSelect a pipeline run to view its stages, jobs, and tasks.\n\n**How to view stages:**\n1. Go to **Recent Runs** view\n2. Click on any run to view details\n3. Stages will appear here automatically\n\n---\n\n✨ **Features:**\n- Hierarchical view: Stages → Jobs → Tasks\n- Click any item to view logs in VS Code\n- Right-click to open in browser\n- See duration for each stage",
-        "when": "azurePipelines.signedIn"
-      },
-      {
-        "view": "azurePipelinesServiceConnections",
-        "contents": "# No Service Connections\n\nService connections are not configured for this project.\n\n[$(refresh) Refresh](command:azurePipelines.refreshServiceConnections)\n\n[$(add) Create Connection](command:azurePipelines.createServiceConnection)\n\n---\n\n💡 **What are Service Connections?**\n\nService connections allow Azure Pipelines to connect to external services like:\n- Azure subscriptions\n- Docker registries\n- Kubernetes clusters\n- Generic endpoints",
-        "when": "azurePipelines.signedIn"
-      }
-    ],
     "commands": [
       {
         "command": "azurePipelines.signIn",

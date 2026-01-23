@@ -265,7 +265,7 @@ export class RunPipelineModal {
         body {
             font-family: var(--vscode-font-family);
             color: var(--vscode-foreground);
-            background: rgba(0, 0, 0, 0.5);
+            background: var(--vscode-editor-background);
             overflow: hidden;
             height: 100vh;
             display: flex;

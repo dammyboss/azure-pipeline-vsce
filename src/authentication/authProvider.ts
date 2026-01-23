@@ -17,14 +17,19 @@ export class AzureDevOpsAuthProvider {
 
     /**
      * Sign in to Azure DevOps using Microsoft authentication
+     * Always shows account picker for user to select account
      */
     async signIn(): Promise<vscode.AuthenticationSession> {
         try {
             // Request authentication using VSCode's Microsoft authentication provider
+            // Always force account picker to show for explicit sign-in
             this.session = await vscode.authentication.getSession(
                 'microsoft',
                 AzureDevOpsAuthProvider.SCOPES,
-                { createIfNone: true }
+                {
+                    clearSessionPreference: true,
+                    forceNewSession: true
+                }
             );
 
             if (this.session) {
@@ -47,15 +52,21 @@ export class AzureDevOpsAuthProvider {
 
     /**
      * Sign out from Azure DevOps
+     * Completely clears the session - next sign-in will show account picker
      */
     async signOut(): Promise<void> {
         if (this.session) {
+            // Clear our stored session data
             await this.context.secrets.delete('ado-session-id');
+
             this.session = undefined;
             this.onDidChangeSessionEmitter.fire(undefined);
 
             vscode.commands.executeCommand('setContext', 'azurePipelines.signedIn', false);
+
             vscode.window.showInformationMessage('Successfully signed out from Azure DevOps');
+        } else {
+            vscode.window.showInformationMessage('Already signed out');
         }
     }
 
