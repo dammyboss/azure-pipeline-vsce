@@ -9,13 +9,18 @@ export class RunTreeItem extends vscode.TreeItem {
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly children?: RunTreeItem[]
     ) {
-        super(`${run.buildNumber || run.name}`, collapsibleState);
+        // Show build number with commit message if available
+        const label = run.commitMessage
+            ? `#${run.buildNumber} • ${run.commitMessage.split('\n')[0]}`
+            : `${run.buildNumber || run.name}`;
+
+        super(label, collapsibleState);
 
         this.tooltip = this.buildTooltip();
         this.description = this.buildDescription();
         this.contextValue = this.getContextValue();
         this.iconPath = this.getStatusIcon();
-        
+
         // Make runs clickable to view details
         if (!children) {
             this.command = {
@@ -163,7 +168,10 @@ export class RunsTreeProvider implements vscode.TreeDataProvider<RunTreeItem> {
             }
 
             this.runs = await this.client.getPipelineRuns(this.pipelineFilter, 50);
-            
+
+            // Fetch commit messages for runs (in parallel)
+            await this.fetchCommitMessages(this.runs);
+
             // Apply filters
             const filteredRuns = this.runs.filter(run => this.filterManager.matchesFilter(run));
 
@@ -174,6 +182,27 @@ export class RunsTreeProvider implements vscode.TreeDataProvider<RunTreeItem> {
             console.error('Failed to load runs:', error);
             return [];
         }
+    }
+
+    /**
+     * Fetch commit messages for runs in parallel
+     */
+    private async fetchCommitMessages(runs: PipelineRun[]): Promise<void> {
+        const promises = runs.map(async (run) => {
+            if (run.repository?.id && run.sourceVersion) {
+                try {
+                    run.commitMessage = await this.client.getCommitMessage(
+                        run.repository.id,
+                        run.sourceVersion
+                    );
+                } catch (error) {
+                    // Silently fail - commit message is optional
+                    console.debug(`Failed to fetch commit for run ${run.id}:`, error);
+                }
+            }
+        });
+
+        await Promise.all(promises);
     }
 
     getRuns(): PipelineRun[] {

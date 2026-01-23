@@ -104,10 +104,24 @@ export class PipelineRunsPanel {
             // Fetch runs for this pipeline
             this.runs = await this.client.getPipelineRuns(this.pipeline.id, 50);
 
-            // Fetch timeline for each run to get stage information
+            // Fetch commit messages and timeline for each run (in parallel)
             const runsWithTimelines = await Promise.all(
                 this.runs.map(async run => {
                     try {
+                        // Fetch commit message if available
+                        if (run.repository?.id && run.sourceVersion) {
+                            try {
+                                run.commitMessage = await this.client.getCommitMessage(
+                                    run.repository.id,
+                                    run.sourceVersion
+                                );
+                            } catch (error) {
+                                // Silently fail - commit message is optional
+                                console.debug(`Failed to fetch commit for run ${run.id}:`, error);
+                            }
+                        }
+
+                        // Fetch timeline
                         const timeline = await this.client.getRunTimeline(run.id);
                         return { run, timeline };
                     } catch (error) {
@@ -680,6 +694,9 @@ export class PipelineRunsPanel {
                     // Get repository information
                     const repository = run.repository?.name || this.pipeline.repository?.name || '';
 
+                    // Get first line of commit message
+                    const commitMessage = run.commitMessage ? run.commitMessage.split('\n')[0] : '';
+
                     return `
                         <tr class="run-row" onclick="openRun(${run.id})">
                             <td>
@@ -687,7 +704,7 @@ export class PipelineRunsPanel {
                                     ${this.getRunStatusIcon(run)}
                                     <div>
                                         <div class="run-number">#${this.escapeHtml(run.buildNumber || String(run.id))}</div>
-                                        ${run.name && run.name !== run.buildNumber ? `<div class="run-message">${this.escapeHtml(run.name)}</div>` : ''}
+                                        ${commitMessage ? `<div class="run-message">${this.escapeHtml(commitMessage)}</div>` : (run.name && run.name !== run.buildNumber ? `<div class="run-message">${this.escapeHtml(run.name)}</div>` : '')}
                                         <div class="run-trigger">
                                             <span>Manually run by</span>
                                             <span style="font-weight: 500;">${this.escapeHtml(triggeredBy)}</span>

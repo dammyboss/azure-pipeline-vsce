@@ -37,6 +37,7 @@ export interface PipelineRun {
     finishedDate?: string | Date;
     sourceBranch?: string;
     sourceVersion?: string;
+    commitMessage?: string; // Fetched separately from Git API
     requestedBy?: {
         displayName: string;
         uniqueName: string;

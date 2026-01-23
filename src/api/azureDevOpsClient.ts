@@ -484,6 +484,24 @@ export class AzureDevOpsClient {
         return response.data;
     }
 
+    // ==================== Git/Repository ====================
+
+    /**
+     * Get commit message for a specific commit
+     */
+    async getCommitMessage(repositoryId: string, commitId: string): Promise<string> {
+        try {
+            const response = await this.axiosInstance.get(
+                `${this.organizationUrl}/${this.projectName}/_apis/git/repositories/${repositoryId}/commits/${commitId}`,
+                { params: { 'api-version': '7.1' } }
+            );
+            return response.data.comment || '';
+        } catch (error: any) {
+            console.error(`Failed to fetch commit message for ${commitId}:`, error.message);
+            return ''; // Return empty string if commit not found
+        }
+    }
+
     // ==================== Logs ====================
 
     /**
