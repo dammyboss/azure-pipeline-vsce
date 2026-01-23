@@ -1,3 +1,11 @@
+// Polyfill for axios navigator global issue in VS Code extension host
+// This must be before any imports that use axios
+if (typeof (globalThis as any).navigator === 'undefined') {
+    (globalThis as any).navigator = {
+        userAgent: 'node.js'
+    };
+}
+
 import * as vscode from 'vscode';
 import { AzureDevOpsAuthProvider } from './authentication/authProvider';
 import { AzureDevOpsClient } from './api/azureDevOpsClient';
