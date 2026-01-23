@@ -17,8 +17,10 @@ export interface Pipeline {
     url: string;
     repository?: {
         id: string;
-        name: string;
+        name?: string;
         type: string;
+        clean?: string | null;
+        checkoutSubmodules?: boolean;
     };
 }
 
@@ -28,18 +30,37 @@ export interface PipelineRun {
     buildNumber: string;
     status: RunStatus;
     result?: RunResult;
-    createdDate: Date;
-    finishedDate?: Date;
-    sourceBranch: string;
-    sourceVersion: string;
+    queueTime?: string | Date;
+    createdDate?: string | Date;
+    startTime?: string | Date;
+    finishTime?: string | Date;
+    finishedDate?: string | Date;
+    sourceBranch?: string;
+    sourceVersion?: string;
     requestedBy?: {
         displayName: string;
         uniqueName: string;
         imageUrl: string;
     };
-    pipeline: {
+    requestedFor?: {
+        displayName: string;
+        uniqueName: string;
+        imageUrl: string;
+    };
+    pipeline?: {
         id: number;
         name: string;
+    };
+    definition?: {
+        id: number;
+        name: string;
+    };
+    repository?: {
+        id: string;
+        name?: string;
+        type: string;
+        clean?: string | null;
+        checkoutSubmodules?: boolean;
     };
     url: string;
 }

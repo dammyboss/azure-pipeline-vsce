@@ -39,6 +39,18 @@ export class RunDetailsPanel {
                     case 'openInBrowser':
                         vscode.env.openExternal(vscode.Uri.parse(this.run.url));
                         break;
+                    case 'runNew':
+                        await this.runNewPipeline();
+                        break;
+                    case 'downloadLogs':
+                        await this.downloadLogs();
+                        break;
+                    case 'editPipeline':
+                        vscode.env.openExternal(vscode.Uri.parse(this.run.url.replace('/_build/results', '/_build/definition')));
+                        break;
+                    case 'loadTests':
+                        await this.loadTestResults();
+                        break;
                 }
             },
             null,
@@ -127,13 +139,89 @@ export class RunDetailsPanel {
     private async viewLog(logId: number) {
         try {
             const content = await this.client.getLogContent(this.run.id, logId);
+            // Send log content to webview for inline display
+            this.panel.webview.postMessage({
+                command: 'showLog',
+                logId: logId,
+                content: content
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to load log: ${error}`);
+        }
+    }
+
+    private async runNewPipeline() {
+        try {
+            const pipelineId = this.run.pipeline?.id || this.run.definition?.id;
+            if (!pipelineId) {
+                vscode.window.showErrorMessage('Pipeline ID not found');
+                return;
+            }
+
+            const branch = this.run.sourceBranch?.replace('refs/heads/', '') || 'main';
+            const newRun = await this.client.runPipeline(pipelineId, { branch });
+            vscode.window.showInformationMessage(`New run started: ${newRun.name}`);
+
+            // Optionally open the new run
+            const openNew = await vscode.window.showInformationMessage(
+                'Run started successfully',
+                'View New Run'
+            );
+            if (openNew === 'View New Run') {
+                RunDetailsPanel.show(this.client, newRun);
+            }
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to start new run: ${error}`);
+        }
+    }
+
+    private async downloadLogs() {
+        try {
+            const logs = await this.client.getRunLogs(this.run.id);
+            if (logs.length === 0) {
+                vscode.window.showInformationMessage('No logs available for this run');
+                return;
+            }
+
+            // Get all log content
+            let allLogs = `Pipeline Run: ${this.run.buildNumber}\n`;
+            allLogs += `Status: ${this.run.result || this.run.status}\n`;
+            allLogs += `Started: ${this.run.createdDate}\n\n`;
+            allLogs += '='.repeat(80) + '\n\n';
+
+            for (const log of logs) {
+                const content = await this.client.getLogContent(this.run.id, log.id);
+                allLogs += `\n\n${'='.repeat(80)}\n`;
+                allLogs += `Log ID: ${log.id}\n`;
+                allLogs += `${'='.repeat(80)}\n\n`;
+                allLogs += content;
+            }
+
+            // Create a new text document with all logs
             const doc = await vscode.workspace.openTextDocument({
-                content,
+                content: allLogs,
                 language: 'log'
             });
             await vscode.window.showTextDocument(doc);
         } catch (error) {
-            vscode.window.showErrorMessage(`Failed to load log: ${error}`);
+            vscode.window.showErrorMessage(`Failed to download logs: ${error}`);
+        }
+    }
+
+    private async loadTestResults() {
+        try {
+            const testRuns = await this.client.getTestRuns(this.run.id);
+
+            this.panel.webview.postMessage({
+                command: 'showTestResults',
+                testRuns: testRuns
+            });
+        } catch (error) {
+            this.panel.webview.postMessage({
+                command: 'showTestResults',
+                testRuns: [],
+                error: String(error)
+            });
         }
     }
 
@@ -172,7 +260,7 @@ export class RunDetailsPanel {
         const isRunning = this.run.status === 'inProgress' || this.run.status === 'notStarted';
         
         const stages = this.buildStageHierarchy(records);
-        const duration = this.run.finishedDate 
+        const duration = this.run.finishedDate && this.run.createdDate
             ? this.formatDuration(new Date(this.run.createdDate), new Date(this.run.finishedDate))
             : 'In progress...';
         
@@ -284,27 +372,90 @@ export class RunDetailsPanel {
         .stage.expanded .stage-body { display: block; }
         .stage.expanded .expand-icon::before { content: '▼'; }
         .expand-icon::before { content: '▶'; margin-right: 5px; }
+
+        /* Enhanced Job Styles with Collapsible Support */
+        .job-container {
+            border-top: 1px solid var(--vscode-panel-border);
+        }
         .job {
             padding: 10px 16px 10px 40px;
-            border-top: 1px solid var(--vscode-panel-border);
             display: flex;
             align-items: center;
             gap: 10px;
+            cursor: pointer;
+            position: relative;
         }
         .job:hover { background: var(--vscode-list-hoverBackground); }
+        .job-expand-icon {
+            position: absolute;
+            left: 20px;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+        .job-container.expanded .job-expand-icon {
+            transform: rotate(90deg);
+        }
+        .job-tasks {
+            display: none;
+            background: var(--vscode-editor-background);
+        }
+        .job-container.expanded .job-tasks {
+            display: block;
+        }
+        .job-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+
+        /* Enhanced Task Styles */
         .task {
-            padding: 8px 16px 8px 60px;
-            border-top: 1px solid var(--vscode-panel-border);
+            padding: 8px 16px 8px 70px;
+            border-top: 1px solid rgba(128, 128, 128, 0.2);
             display: flex;
             align-items: center;
             gap: 10px;
             font-size: 13px;
+            position: relative;
+        }
+        .task::before {
+            content: '';
+            position: absolute;
+            left: 48px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--vscode-panel-border);
+        }
+        .task:last-child::before {
+            bottom: 50%;
+        }
+        .task::after {
+            content: '';
+            position: absolute;
+            left: 48px;
+            top: 50%;
+            width: 12px;
+            height: 2px;
+            background: var(--vscode-panel-border);
         }
         .task:hover { background: var(--vscode-list-hoverBackground); }
         .task-icon {
             width: 16px;
             height: 16px;
             border-radius: 50%;
+            position: relative;
+            z-index: 1;
+        }
+        .task-name {
+            flex: 1;
+            min-width: 0;
+        }
+        .task-name-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .success { background: #28a745; }
         .failed { background: #dc3545; }
@@ -322,6 +473,74 @@ export class RunDetailsPanel {
             font-size: 12px;
         }
         .log-link:hover { text-decoration: underline; }
+
+        /* Top Header with Run New button and menu */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .run-new-btn {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .run-new-btn:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        .menu-button {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            position: relative;
+        }
+        .menu-button:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+        }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            border-radius: 4px;
+            min-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+        }
+        .dropdown-menu.show {
+            display: block;
+        }
+        .dropdown-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+        .dropdown-item:hover {
+            background: var(--vscode-list-hoverBackground);
+        }
+        .dropdown-divider {
+            height: 1px;
+            background: var(--vscode-panel-border);
+            margin: 4px 0;
+        }
+
         .issues {
             margin-top: 20px;
             padding: 16px;
@@ -470,19 +689,155 @@ export class RunDetailsPanel {
             color: var(--vscode-descriptionForeground);
             margin-top: 8px;
         }
+
+        /* Inline Log Viewer Styles */
+        .log-viewer-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            animation: fadeIn 0.2s ease-in;
+        }
+        .log-viewer-overlay.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .log-viewer-panel {
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            width: 90%;
+            max-width: 1200px;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease-out;
+        }
+        .log-viewer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            background: var(--vscode-editor-inactiveSelectionBackground);
+        }
+        .log-viewer-title {
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .log-viewer-live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 8px;
+            background: #dc3545;
+            color: white;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .log-viewer-live-badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        .log-viewer-close {
+            background: none;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 20px;
+            padding: 0 8px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .log-viewer-close:hover {
+            opacity: 1;
+        }
+        .log-viewer-content {
+            flex: 1;
+            overflow: auto;
+            padding: 16px 20px;
+            font-family: var(--vscode-editor-font-family);
+            font-size: var(--vscode-editor-font-size);
+            line-height: 1.5;
+        }
+        .log-viewer-content pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .log-line {
+            padding: 2px 0;
+        }
+        .log-line-number {
+            display: inline-block;
+            width: 50px;
+            text-align: right;
+            margin-right: 16px;
+            color: var(--vscode-editorLineNumber-foreground);
+            user-select: none;
+        }
+        .log-line-content {
+            color: var(--vscode-editor-foreground);
+        }
+        .log-loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--vscode-descriptionForeground);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="header">
+    <div class="header" style="position: relative;">
         <div class="title">
-            ${this.run.pipeline?.name || this.run.name || 'Pipeline Run'} - ${this.run.buildNumber || this.run.name}
+            ${this.run.pipeline?.name || this.run.definition?.name || this.run.name || 'Pipeline Run'} - ${this.run.buildNumber || this.run.name}
         </div>
         <div class="meta">
             <span class="status">${this.run.result || this.run.status}</span>
             <span>Branch: ${this.run.sourceBranch?.replace('refs/heads/', '') || 'N/A'}</span>
             <span>Duration: ${duration}</span>
-            <span>Started: ${new Date(this.run.createdDate).toLocaleString()}</span>
-            ${this.run.requestedBy?.displayName ? `<span>By: ${this.run.requestedBy.displayName}</span>` : ''}
+            <span>Started: ${this.run.createdDate ? new Date(this.run.createdDate).toLocaleString() : 'N/A'}</span>
+            ${this.run.requestedBy?.displayName || this.run.requestedFor?.displayName ? `<span>By: ${this.run.requestedBy?.displayName || this.run.requestedFor?.displayName}</span>` : ''}
+        </div>
+        <div class="header-actions" style="position: absolute; top: 0; right: 0;">
+            <button class="run-new-btn" onclick="runNew()">Run new</button>
+            <div style="position: relative;">
+                <button class="menu-button" onclick="toggleMenu(event)">⋮</button>
+                <div class="dropdown-menu" id="dropdownMenu">
+                    <div class="dropdown-item" onclick="downloadLogs()">Download logs</div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" onclick="editPipeline()">Edit pipeline</div>
+                    <div class="dropdown-item" onclick="openInBrowser()">Open in browser</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -490,15 +845,18 @@ export class RunDetailsPanel {
         <button onclick="refresh()">🔄 Refresh</button>
         ${isRunning ? '<button onclick="cancel()">⏹️ Cancel</button>' : ''}
         ${this.run.result === 'failed' || this.run.result === 'partiallySucceeded' ? '<button onclick="retry()">🔁 Retry</button>' : ''}
-        <button class="secondary" onclick="openInBrowser()">🌐 Open in Browser</button>
     </div>
 
     <div class="summary-section">
-        <h3 style="margin: 0 0 12px 0;">Summary</h3>
-        <div class="summary-grid">
+        <div class="tabs" style="margin-bottom: 16px;">
+            <div class="tab active" onclick="switchSummaryTab('summary')">Summary</div>
+            <div class="tab" onclick="switchSummaryTab('tests')">Tests</div>
+        </div>
+        <div class="tab-content active" id="summary-tab-content">
+            <div class="summary-grid">
             <div class="summary-item">
                 <span class="summary-label">Repository</span>
-                <span class="summary-value">${(this.run as any).repository?.name || 'N/A'}</span>
+                <span class="summary-value">${this.run.repository?.id || this.run.repository?.name || 'N/A'}</span>
             </div>
             <div class="summary-item">
                 <span class="summary-label">Branch</span>
@@ -510,11 +868,11 @@ export class RunDetailsPanel {
             </div>
             <div class="summary-item">
                 <span class="summary-label">Triggered by</span>
-                <span class="summary-value">${this.run.requestedBy?.displayName || (this.run as any).requestedFor?.displayName || 'System'}</span>
+                <span class="summary-value">${this.run.requestedBy?.displayName || this.run.requestedFor?.displayName || 'System'}</span>
             </div>
             <div class="summary-item">
                 <span class="summary-label">Started</span>
-                <span class="summary-value">${new Date(this.run.createdDate).toLocaleString()}</span>
+                <span class="summary-value">${this.run.createdDate ? new Date(this.run.createdDate).toLocaleString() : 'N/A'}</span>
             </div>
             <div class="summary-item">
                 <span class="summary-label">Duration</span>
@@ -527,6 +885,12 @@ export class RunDetailsPanel {
             <div class="summary-item">
                 <span class="summary-label">Run ID</span>
                 <span class="summary-value">#${this.run.id}</span>
+            </div>
+        </div>
+        </div>
+        <div class="tab-content" id="tests-tab-content">
+            <div id="test-runs-container" style="padding: 20px; text-align: center; color: var(--vscode-descriptionForeground);">
+                Loading test results...
             </div>
         </div>
     </div>
@@ -556,33 +920,155 @@ export class RunDetailsPanel {
 
     ${this.renderIssues(records)}
 
+    <!-- Inline Log Viewer -->
+    <div class="log-viewer-overlay" id="logViewerOverlay">
+        <div class="log-viewer-panel">
+            <div class="log-viewer-header">
+                <div class="log-viewer-title" id="logViewerTitle">Task Log</div>
+                <button class="log-viewer-close" onclick="closeLogViewer()">×</button>
+            </div>
+            <div class="log-viewer-content" id="logViewerContent">
+                <div class="log-loading">Loading log...</div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const vscode = acquireVsCodeApi();
-        
+        let logStreamInterval = null;
+        let currentLogId = null;
+        let isStreaming = false;
+
         function refresh() {
             vscode.postMessage({ command: 'refresh' });
         }
-        
+
         function cancel() {
             vscode.postMessage({ command: 'cancel' });
         }
-        
+
         function retry() {
             vscode.postMessage({ command: 'retry' });
         }
-        
+
         function openInBrowser() {
             vscode.postMessage({ command: 'openInBrowser' });
         }
-        
-        function viewLog(logId) {
+
+        function runNew() {
+            vscode.postMessage({ command: 'runNew' });
+        }
+
+        function downloadLogs() {
+            vscode.postMessage({ command: 'downloadLogs' });
+            closeMenu();
+        }
+
+        function editPipeline() {
+            vscode.postMessage({ command: 'editPipeline' });
+            closeMenu();
+        }
+
+        function toggleMenu(event) {
+            event.stopPropagation();
+            const menu = document.getElementById('dropdownMenu');
+            menu.classList.toggle('show');
+        }
+
+        function closeMenu() {
+            const menu = document.getElementById('dropdownMenu');
+            menu.classList.remove('show');
+        }
+
+        function switchSummaryTab(tabName) {
+            const tabs = document.querySelectorAll('.summary-section .tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+
+            const activeTab = Array.from(tabs).find(tab =>
+                tab.getAttribute('onclick') === \`switchSummaryTab('\${tabName}')\`
+            );
+            if (activeTab) activeTab.classList.add('active');
+
+            document.getElementById('summary-tab-content')?.classList.toggle('active', tabName === 'summary');
+            document.getElementById('tests-tab-content')?.classList.toggle('active', tabName === 'tests');
+
+            if (tabName === 'tests') {
+                loadTestResults();
+            }
+        }
+
+        async function loadTestResults() {
+            const container = document.getElementById('test-runs-container');
+            container.innerHTML = '<div style="padding: 20px; text-align: center;">Loading test results...</div>';
+            vscode.postMessage({ command: 'loadTests' });
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', () => {
+            closeMenu();
+        });
+
+        function viewLog(logId, taskName = null, taskStatus = null) {
+            // Show log viewer with loading state
+            const overlay = document.getElementById('logViewerOverlay');
+            const content = document.getElementById('logViewerContent');
+            const title = document.getElementById('logViewerTitle');
+
+            currentLogId = logId;
+            title.innerHTML = taskName || 'Task Log';
+            content.innerHTML = '<div class="log-loading">Loading log...</div>';
+            overlay.classList.add('active');
+
+            // Check if we should stream (task is running)
+            const shouldStream = taskStatus && (taskStatus.toLowerCase() === 'inprogress' || taskStatus.toLowerCase() === 'running');
+
+            if (shouldStream) {
+                startLogStreaming(logId, taskName);
+            } else {
+                stopLogStreaming();
+            }
+
+            // Request log content from extension
             vscode.postMessage({ command: 'viewLog', logId });
         }
-        
+
+        function startLogStreaming(logId, taskName) {
+            isStreaming = true;
+            const title = document.getElementById('logViewerTitle');
+            title.innerHTML = \`\${taskName || 'Task Log'} <span class="log-viewer-live-badge">Live</span>\`;
+
+            // Refresh logs every 3 seconds
+            logStreamInterval = setInterval(() => {
+                if (currentLogId === logId) {
+                    vscode.postMessage({ command: 'viewLog', logId });
+                }
+            }, 3000);
+        }
+
+        function stopLogStreaming() {
+            if (logStreamInterval) {
+                clearInterval(logStreamInterval);
+                logStreamInterval = null;
+            }
+            isStreaming = false;
+        }
+
+        function closeLogViewer() {
+            const overlay = document.getElementById('logViewerOverlay');
+            overlay.classList.remove('active');
+            stopLogStreaming();
+            currentLogId = null;
+        }
+
         function toggleStage(element) {
             element.closest('.stage').classList.toggle('expanded');
         }
-        
+
+        function toggleJob(element) {
+            event.stopPropagation();
+            element.closest('.job-container').classList.toggle('expanded');
+        }
+
         function switchTab(tabName) {
             // Update tabs
             document.querySelectorAll('.tab').forEach(tab => {
@@ -591,7 +1077,7 @@ export class RunDetailsPanel {
             document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.remove('active');
             });
-            
+
             // Activate selected tab
             const tabs = document.querySelectorAll('.tab');
             for (let i = 0; i < tabs.length; i++) {
@@ -602,7 +1088,113 @@ export class RunDetailsPanel {
             }
             document.getElementById(tabName + '-tab')?.classList.add('active');
         }
-        
+
+        // Handle messages from extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            if (message.command === 'showLog') {
+                const content = document.getElementById('logViewerContent');
+                const wasScrolledToBottom = content.scrollHeight - content.scrollTop === content.clientHeight ||
+                                           content.scrollHeight - content.scrollTop - content.clientHeight < 50;
+
+                // Format log content with line numbers
+                const lines = message.content.split('\\n');
+                const formattedLines = lines.map((line, index) => {
+                    const lineNum = index + 1;
+                    const escapedLine = line
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                    return \`<div class="log-line"><span class="log-line-number">\${lineNum}</span><span class="log-line-content">\${escapedLine}</span></div>\`;
+                }).join('');
+
+                content.innerHTML = formattedLines || '<div class="log-loading">No log content available</div>';
+
+                // Auto-scroll to bottom if we were already at the bottom or if streaming
+                if (isStreaming || wasScrolledToBottom) {
+                    setTimeout(() => {
+                        content.scrollTop = content.scrollHeight;
+                    }, 100);
+                }
+            } else if (message.command === 'showTestResults') {
+                const container = document.getElementById('test-runs-container');
+                if (message.error) {
+                    container.innerHTML = \`<div style="padding: 20px; text-align: center; color: var(--vscode-errorForeground);">Failed to load test results: \${message.error}</div>\`;
+                    return;
+                }
+
+                const testRuns = message.testRuns || [];
+                if (testRuns.length === 0) {
+                    container.innerHTML = '<div style="padding: 20px; text-align: center;">No test results available for this run</div>';
+                    return;
+                }
+
+                let html = '<div style="padding: 16px;">';
+                testRuns.forEach(run => {
+                    const passRate = run.totalTests > 0 ? ((run.passedTests / run.totalTests) * 100).toFixed(1) : 0;
+                    const statusColor = run.state === 'Completed' ? (run.passedTests === run.totalTests ? '#28a745' : '#dc3545') : '#007acc';
+
+                    html += \`
+                        <div style="border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 16px; margin-bottom: 12px;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                                <div style="width: 12px; height: 12px; border-radius: 50%; background: \${statusColor};"></div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; font-size: 14px;">\${run.name || 'Test Run #' + run.id}</div>
+                                    <div style="font-size: 12px; color: var(--vscode-descriptionForeground);">State: \${run.state || 'Unknown'}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 20px; font-weight: 600;">\${passRate}%</div>
+                                    <div style="font-size: 11px; color: var(--vscode-descriptionForeground);">Pass Rate</div>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; font-size: 13px;">
+                                <div>
+                                    <div style="color: var(--vscode-descriptionForeground);">Total</div>
+                                    <div style="font-weight: 600;">\${run.totalTests || 0}</div>
+                                </div>
+                                <div>
+                                    <div style="color: var(--vscode-descriptionForeground);">Passed</div>
+                                    <div style="font-weight: 600; color: #28a745;">\${run.passedTests || 0}</div>
+                                </div>
+                                <div>
+                                    <div style="color: var(--vscode-descriptionForeground);">Failed</div>
+                                    <div style="font-weight: 600; color: #dc3545;">\${(run.unanalyzedTests || 0) + (run.incompleteTests || 0)}</div>
+                                </div>
+                                <div>
+                                    <div style="color: var(--vscode-descriptionForeground);">Duration</div>
+                                    <div style="font-weight: 600;">\${run.completedDate && run.startedDate ? formatDuration(run.startedDate, run.completedDate) : 'N/A'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    \`;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            }
+        });
+
+        function formatDuration(start, end) {
+            const diff = new Date(end) - new Date(start);
+            const seconds = Math.floor(diff / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+
+            if (hours > 0) {
+                return \`\${hours}h \${minutes % 60}m\`;
+            } else if (minutes > 0) {
+                return \`\${minutes}m \${seconds % 60}s\`;
+            } else {
+                return \`\${seconds}s\`;
+            }
+        }
+
+        // Close log viewer when clicking outside the panel
+        document.getElementById('logViewerOverlay')?.addEventListener('click', (e) => {
+            if (e.target.id === 'logViewerOverlay') {
+                closeLogViewer();
+            }
+        });
+
         // Auto-expand first stage
         document.querySelector('.stage')?.classList.add('expanded');
     </script>
@@ -614,14 +1206,39 @@ export class RunDetailsPanel {
         if (!records || records.length === 0) {
             return [];
         }
+
         const stages = records.filter(r => r.type === 'Stage');
-        return stages.map(stage => ({
-            ...stage,
-            jobs: records.filter(r => r.type === 'Job' && r.parentId === stage.id).map(job => ({
-                ...job,
-                tasks: records.filter(r => r.type === 'Task' && r.parentId === job.id)
-            }))
-        }));
+
+        const hierarchy = stages.map(stage => {
+            // Get phases for this stage
+            const phases = records.filter(r => r.type === 'Phase' && r.parentId === stage.id);
+
+            // Get jobs from all phases in this stage
+            const jobs: any[] = [];
+            for (const phase of phases) {
+                const phaseJobs = records.filter(r => r.type === 'Job' && r.parentId === phase.id);
+                jobs.push(...phaseJobs);
+            }
+
+            // Also check for jobs directly under the stage (in case there's no phase)
+            const directJobs = records.filter(r => r.type === 'Job' && r.parentId === stage.id);
+            jobs.push(...directJobs);
+
+            const jobsWithTasks = jobs.map(job => {
+                const tasks = records.filter(r => r.type === 'Task' && r.parentId === job.id);
+                return {
+                    ...job,
+                    tasks: tasks
+                };
+            });
+
+            return {
+                ...stage,
+                jobs: jobsWithTasks
+            };
+        });
+
+        return hierarchy;
     }
 
     private renderStage(stage: any): string {
@@ -650,15 +1267,30 @@ export class RunDetailsPanel {
         const duration = job.startTime && job.finishTime
             ? this.formatDuration(new Date(job.startTime), new Date(job.finishTime))
             : '';
+        const hasTasks = job.tasks && job.tasks.length > 0;
+        const taskCount = hasTasks ? job.tasks.length : 0;
+        const completedTasks = hasTasks ? job.tasks.filter((t: any) => t.result === 'succeeded').length : 0;
 
         return `
-            <div class="job">
-                <div class="stage-icon ${icon}">${this.getIconSymbol(job.result || job.state)}</div>
-                <span style="flex: 1;">${job.name}</span>
-                <span class="stage-duration">${duration}</span>
-                ${job.log ? `<span class="log-link" onclick="viewLog(${job.log.id})">📄 View Log</span>` : ''}
+            <div class="job-container ${hasTasks ? 'expanded' : ''}">
+                <div class="job" onclick="toggleJob(this)">
+                    ${hasTasks ? '<span class="job-expand-icon">▶</span>' : ''}
+                    <div class="job-info">
+                        <div class="stage-icon ${icon}">${this.getIconSymbol(job.result || job.state)}</div>
+                        <span style="flex: 1;">
+                            ${job.name}
+                            ${hasTasks ? `<span style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-left: 8px;">(${completedTasks}/${taskCount} tasks)</span>` : ''}
+                        </span>
+                        <span class="stage-duration">${duration}</span>
+                        ${job.log ? `<span class="log-link" onclick="event.stopPropagation(); viewLog(${job.log.id}, '${job.name.replace(/'/g, "\\'")}', '${job.result || job.state}')">📄 View Log</span>` : ''}
+                    </div>
+                </div>
+                ${hasTasks ? `
+                <div class="job-tasks">
+                    ${job.tasks.map((task: any) => this.renderTask(task)).join('')}
+                </div>
+                ` : ''}
             </div>
-            ${job.tasks.map((task: any) => this.renderTask(task)).join('')}
         `;
     }
 
@@ -667,13 +1299,18 @@ export class RunDetailsPanel {
         const duration = task.startTime && task.finishTime
             ? this.formatDuration(new Date(task.startTime), new Date(task.finishTime))
             : '';
+        const status = task.result || task.state || 'pending';
+        const statusText = String(status).toLowerCase();
 
         return `
             <div class="task">
                 <div class="task-icon ${icon}"></div>
-                <span style="flex: 1;">${task.name}</span>
+                <div class="task-name">
+                    <div class="task-name-text" title="${task.name}">${task.name}</div>
+                    ${statusText === 'inprogress' ? '<div style="font-size: 11px; color: var(--vscode-descriptionForeground);">Running...</div>' : ''}
+                </div>
                 <span class="stage-duration">${duration}</span>
-                ${task.log ? `<span class="log-link" onclick="viewLog(${task.log.id})">📄 Log</span>` : ''}
+                ${task.log ? `<span class="log-link" onclick="viewLog(${task.log.id}, '${task.name.replace(/'/g, "\\'")}', '${status}')">📄 Log</span>` : ''}
             </div>
         `;
     }

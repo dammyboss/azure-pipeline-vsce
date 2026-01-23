@@ -317,11 +317,65 @@ export class AzureDevOpsClient {
      * Get a specific run
      */
     async getRun(runId: number): Promise<PipelineRun> {
+        // Try to get the build from the list API first (returns more complete data)
+        try {
+            const listUrl = `${this.organizationUrl}/${this.projectName}/_apis/build/builds?buildIds=${runId}&api-version=7.1`;
+            console.log('Calling list API:', listUrl);
+
+            const listResponse = await this.axiosInstance.get(
+                `${this.organizationUrl}/${this.projectName}/_apis/build/builds`,
+                {
+                    params: {
+                        'api-version': '7.1',
+                        'buildIds': runId,
+                        'queryOrder': 'finishTimeDescending'
+                    }
+                }
+            );
+
+            if (listResponse.data.value && listResponse.data.value.length > 0) {
+                const build = listResponse.data.value[0];
+                console.log('getRun from list API - Checking specific fields:');
+                console.log('  repository:', build.repository);
+                console.log('  definition:', build.definition);
+                console.log('  sourceBranch:', build.sourceBranch);
+                console.log('  sourceVersion:', build.sourceVersion);
+                console.log('  requestedBy:', build.requestedBy);
+                console.log('  requestedFor:', build.requestedFor);
+                console.log('  Full build object keys:', Object.keys(build));
+
+                // Map state to status for consistency
+                if (build.state && !build.status) {
+                    build.status = build.state;
+                }
+                return build;
+            }
+        } catch (error) {
+            console.warn('Failed to get run from list API, falling back to direct API:', error);
+        }
+
+        // Fallback to direct API
         const response = await this.axiosInstance.get(
             `${this.organizationUrl}/${this.projectName}/_apis/build/builds/${runId}`,
-            { params: { 'api-version': '7.1-preview.1' } }
+            { params: { 'api-version': '7.1' } }
         );
-        return response.data;
+
+        const build = response.data;
+        console.log('getRun fallback - Checking specific fields:');
+        console.log('  repository:', build.repository);
+        console.log('  definition:', build.definition);
+        console.log('  sourceBranch:', build.sourceBranch);
+        console.log('  sourceVersion:', build.sourceVersion);
+        console.log('  sourceGetVersion:', build.sourceGetVersion);
+        console.log('  requestedBy:', build.requestedBy);
+        console.log('  requestedFor:', build.requestedFor);
+        console.log('  Full build object keys:', Object.keys(build));
+
+        // Map state to status if needed
+        if (build.state && !build.status) {
+            build.status = build.state;
+        }
+        return build;
     }
 
     /**
@@ -433,17 +487,49 @@ export class AzureDevOpsClient {
         }
     }
 
+    /**
+     * Get test runs for a build
+     */
+    async getTestRuns(runId: number): Promise<any[]> {
+        try {
+            const response = await this.axiosInstance.get(
+                `${this.organizationUrl}/${this.projectName}/_apis/test/runs`,
+                {
+                    params: {
+                        'api-version': '7.1',
+                        'buildIds': runId
+                    }
+                }
+            );
+            return response.data.value || [];
+        } catch (error: any) {
+            console.error('Failed to get test runs:', error);
+            return [];
+        }
+    }
+
     // ==================== Artifacts ====================
 
     /**
      * Get artifacts for a run
      */
     async getArtifacts(runId: number): Promise<Artifact[]> {
-        const response = await this.axiosInstance.get(
-            `${this.organizationUrl}/${this.projectName}/_apis/build/builds/${runId}/artifacts`,
-            { params: { 'api-version': '7.1-preview.1' } }
-        );
-        return response.data.value;
+        try {
+            const response = await this.axiosInstance.get(
+                `${this.organizationUrl}/${this.projectName}/_apis/build/builds/${runId}/artifacts`,
+                { params: { 'api-version': '7.1-preview.1' } }
+            );
+            console.log(`getArtifacts for run ${runId}:`, JSON.stringify(response.data, null, 2));
+            return response.data.value || [];
+        } catch (error: any) {
+            // 404 means no artifacts exist for this build, which is normal
+            if (error.response?.status === 404) {
+                console.log(`getArtifacts for run ${runId}: 404 - No artifacts found`);
+                return [];
+            }
+            console.error(`getArtifacts for run ${runId} error:`, error);
+            throw error;
+        }
     }
 
     /**
