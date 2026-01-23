@@ -82,6 +82,9 @@ export class PipelineCommands {
             ),
             vscode.commands.registerCommand('azurePipelines.viewStageLog', (item: { record: TimelineRecord; run?: PipelineRun }) =>
                 this.viewStageLog(item.record, item.run)
+            ),
+            vscode.commands.registerCommand('azurePipelines.openStageInBrowser', (item: { record: TimelineRecord; run?: PipelineRun }) =>
+                this.openStageInBrowser(item.record, item.run)
             )
         );
     }
@@ -720,26 +723,35 @@ export class PipelineCommands {
                     cancellable: false
                 },
                 async () => {
-                    // Fetch log content directly from the URL
-                    const logContent = await this.client.axiosInstance.get(record.log!.url, {
-                        responseType: 'text'
-                    });
+                    // Fetch log content from the URL
+                    const response = await this.client.axiosInstance.get<{ count: number; value: string[] }>(
+                        record.log!.url
+                    );
 
-                    // Format log content - remove timestamps if they exist
-                    const formattedLog = typeof logContent.data === 'string'
-                        ? logContent.data
-                              .split('\n')
-                              .map(line => {
-                                  // Remove timestamp prefix like "2024-01-23T14:30:45.123Z "
-                                  return line.length > 29 && line[29] === ' ' ? line.slice(30) : line;
-                              })
-                              .join('\n')
-                        : logContent.data;
+                    // Check if response has the expected format
+                    let formattedLog: string;
 
-                    // Open in text document
+                    if (response.data && Array.isArray(response.data.value)) {
+                        // Azure DevOps returns logs as an array of lines with timestamps
+                        // Format: "2024-01-23T14:30:45.1234567Z <log content>"
+                        // Remove the first 29 characters (timestamp) from each line
+                        formattedLog = response.data.value
+                            .map(line => line.length > 29 ? line.slice(29) : line)
+                            .join('\n');
+                    } else if (typeof response.data === 'string') {
+                        // Fallback: if it's a string, split and format
+                        formattedLog = response.data
+                            .split('\n')
+                            .map(line => line.length > 29 && line[29] === ' ' ? line.slice(30) : line)
+                            .join('\n');
+                    } else {
+                        formattedLog = String(response.data);
+                    }
+
+                    // Open in text document with proper syntax highlighting
                     const document = await vscode.workspace.openTextDocument({
                         content: formattedLog,
-                        language: 'log'
+                        language: 'plaintext'
                     });
 
                     await vscode.window.showTextDocument(document, {
@@ -751,6 +763,60 @@ export class PipelineCommands {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to load stage log: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * Open stage/job/task in browser with deep link
+     */
+    private async openStageInBrowser(record: TimelineRecord, run?: PipelineRun): Promise<void> {
+        try {
+            if (!run) {
+                vscode.window.showErrorMessage('Run information not available');
+                return;
+            }
+
+            const config = this.client.getConfig();
+            const orgName = config.organizationName;
+            const projectName = config.projectName;
+
+            if (!orgName || !projectName) {
+                vscode.window.showErrorMessage('Organization or project not configured');
+                return;
+            }
+
+            let url: string;
+            const baseUrl = `https://dev.azure.com/${orgName}/${projectName}/_build/results?buildId=${run.id}&view=logs`;
+
+            // Construct URL based on record type and state
+            const recordType = record.type.toLowerCase();
+            const recordState = (record.state || '').toLowerCase();
+            const recordResult = (record.result || '').toLowerCase();
+
+            if (recordType === 'stage' || !record.parentId) {
+                // Stage level - use stage ID
+                url = `${baseUrl}&s=${record.id}`;
+            } else if (recordType === 'job' || recordType === 'phase') {
+                // Job level - use job ID
+                url = `${baseUrl}&j=${record.id}`;
+            } else if (record.parentId) {
+                // Task level - use job and task IDs
+                if (recordState === 'completed' && recordResult === 'succeeded') {
+                    url = `${baseUrl}&j=${record.parentId}&t=${record.id}`;
+                } else if (recordResult === 'skipped') {
+                    url = `${baseUrl}&j=${record.id}`;
+                } else {
+                    url = `${baseUrl}&j=${record.parentId}&t=${record.id}`;
+                }
+            } else {
+                // Fallback to stage view
+                url = `${baseUrl}&s=${record.id}`;
+            }
+
+            vscode.env.openExternal(vscode.Uri.parse(url));
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to open in browser: ${errorMessage}`);
         }
     }
 }
