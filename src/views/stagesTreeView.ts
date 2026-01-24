@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { PipelineRun, Timeline, TimelineRecord } from '../models/types';
 import { formatDurationBetween } from '../utils/formatDuration';
@@ -61,7 +62,7 @@ export class StageTreeItem extends vscode.TreeItem {
         return this.record.type.toLowerCase();
     }
 
-    private getStatusIcon(): vscode.ThemeIcon {
+    private getStatusIcon(): vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri } {
         const state = (this.record.state || '').toLowerCase();
         const result = (this.record.result || '').toLowerCase();
 
@@ -72,11 +73,17 @@ export class StageTreeItem extends vscode.TreeItem {
 
         // Check result
         if (result === 'succeeded') {
-            return new vscode.ThemeIcon('check', new vscode.ThemeColor('testing.iconPassed'));
+            const iconPath = vscode.Uri.file(
+                path.join(__dirname, '..', '..', 'resources', 'icons', 'status-success.svg')
+            );
+            return { light: iconPath, dark: iconPath };
         }
 
         if (result === 'failed') {
-            return new vscode.ThemeIcon('close', new vscode.ThemeColor('testing.iconFailed'));
+            const iconPath = vscode.Uri.file(
+                path.join(__dirname, '..', '..', 'resources', 'icons', 'status-failed.svg')
+            );
+            return { light: iconPath, dark: iconPath };
         }
 
         if (result === 'partiallysucceeded') {

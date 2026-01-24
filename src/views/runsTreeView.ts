@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { PipelineRun, RunResult, RunStatus } from '../models/types';
 import { FilterManager } from '../utils/filterManager';
@@ -106,11 +107,17 @@ export class RunTreeItem extends vscode.TreeItem {
         }
 
         if (resultStr === 'succeeded') {
-            return new vscode.ThemeIcon('check', new vscode.ThemeColor('testing.iconPassed'));
+            const iconPath = vscode.Uri.file(
+                path.join(__dirname, '..', '..', 'resources', 'icons', 'status-success.svg')
+            );
+            return { light: iconPath, dark: iconPath };
         }
 
         if (resultStr === 'failed') {
-            return new vscode.ThemeIcon('close', new vscode.ThemeColor('testing.iconFailed'));
+            const iconPath = vscode.Uri.file(
+                path.join(__dirname, '..', '..', 'resources', 'icons', 'status-failed.svg')
+            );
+            return { light: iconPath, dark: iconPath };
         }
 
         if (resultStr === 'partiallysucceeded') {
