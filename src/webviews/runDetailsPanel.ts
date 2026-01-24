@@ -283,6 +283,7 @@ export class RunDetailsPanel {
             let currentStage: { name: string; displayName?: string; dependsOn?: string[] } | null = null;
             let inDependsOn = false;
             let inStagesSection = false;
+            let inStageProperties = false; // Track if we're in the stage's direct properties (before jobs:)
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
@@ -305,16 +306,23 @@ export class RunDetailsPanel {
                         name: stageName
                     };
                     inDependsOn = false;
+                    inStageProperties = true; // We're now in this stage's properties
                     console.log('Found stage:', stageName, 'at line', i);
                     continue;
                 }
 
-                // Match displayName for current stage
-                if (currentStage && line.match(/^\s*displayName:\s*(.+)$/)) {
-                    const displayMatch = line.match(/^\s*displayName:\s*(.+)$/);
+                // Check if we're leaving stage properties (entering jobs section)
+                if (currentStage && inStageProperties && line.match(/^\s+jobs:\s*$/)) {
+                    inStageProperties = false;
+                    continue;
+                }
+
+                // Match displayName for current stage (only if we're in stage properties, not in jobs)
+                if (currentStage && inStageProperties && !currentStage.displayName && line.match(/^\s+displayName:\s*(.+)$/)) {
+                    const displayMatch = line.match(/^\s+displayName:\s*(.+)$/);
                     if (displayMatch) {
                         currentStage.displayName = displayMatch[1].trim().replace(/['"]/g, '');
-                        console.log('Found displayName:', currentStage.displayName);
+                        console.log('Found stage displayName:', currentStage.displayName);
                     }
                     continue;
                 }
