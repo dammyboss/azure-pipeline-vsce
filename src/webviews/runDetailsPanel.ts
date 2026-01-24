@@ -117,8 +117,15 @@ export class RunDetailsPanel {
         // Use the run data we already have, don't fetch again
         const timeline = await this.client.getRunTimeline(this.run.id);
         const logs = await this.client.getRunLogs(this.run.id);
-        
-        this.panel.webview.html = this.getHtmlContent(timeline.records || [], logs);
+
+        // Fetch stage dependencies from YAML
+        const pipelineId = this.run.pipeline?.id || this.run.definition?.id;
+        let stageDeps: Array<{ name: string; dependsOn?: string[] }> = [];
+        if (pipelineId) {
+            stageDeps = await this.fetchStages(pipelineId);
+        }
+
+        this.panel.webview.html = this.getHtmlContent(timeline.records || [], logs, stageDeps);
     }
 
     private async cancelRun() {
@@ -534,10 +541,10 @@ export class RunDetailsPanel {
 </html>`;
     }
 
-    private getHtmlContent(records: TimelineRecord[], logs: any[]): string {
+    private getHtmlContent(records: TimelineRecord[], logs: any[], stageDeps: Array<{ name: string; dependsOn?: string[] }> = []): string {
         const statusColor = this.getStatusColor(this.run.result || this.run.status);
 
-        const stages = this.buildStageHierarchy(records);
+        const stages = this.buildStageHierarchy(records, stageDeps);
         const duration = this.run.finishedDate && this.run.createdDate
             ? this.formatDuration(new Date(this.run.createdDate), new Date(this.run.finishedDate))
             : 'In progress...';
@@ -881,74 +888,70 @@ export class RunDetailsPanel {
         .tab-content.active {
             display: block;
         }
-        .stage-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 16px;
+        .stage-graph {
+            display: flex;
+            align-items: flex-start;
+            gap: 0;
+            overflow-x: auto;
+            padding: 16px 0;
+        }
+        .stage-column {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .stage-connector-col {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 32px;
         }
         .stage-card {
             border: 1px solid var(--vscode-panel-border);
             border-radius: 6px;
-            padding: 16px;
+            padding: 10px 14px;
             background: var(--vscode-editor-background);
+            min-width: 180px;
+            max-width: 220px;
         }
         .stage-card-header {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 4px;
         }
         .stage-card-title {
             font-weight: 600;
-            font-size: 16px;
+            font-size: 13px;
             flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .stage-card-status {
-            padding: 4px 8px;
-            border-radius: 12px;
+        .stage-card-info {
             font-size: 11px;
-            font-weight: 600;
-            color: white;
+            color: var(--vscode-descriptionForeground);
         }
         .stage-card-duration {
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground);
-            margin-bottom: 12px;
-        }
-        .scanning-card {
-            background: var(--vscode-editor-inactiveSelectionBackground);
-            border: 1px dashed var(--vscode-panel-border);
-            border-radius: 6px;
-            padding: 12px;
-            margin-top: 12px;
-        }
-        .scanning-card-title {
-            font-weight: 600;
-            font-size: 14px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .scanning-card-icon {
-            color: #007acc;
-        }
-        .scanning-card-stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            font-size: 12px;
-        }
-        .scanning-stat {
-            text-align: center;
-        }
-        .scanning-stat-value {
-            font-weight: 600;
-            font-size: 18px;
-        }
-        .scanning-stat-label {
-            color: var(--vscode-descriptionForeground);
             font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+        }
+        .stage-icon-small {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            font-size: 11px;
+            flex-shrink: 0;
+        }
+        .stage-card-status {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            color: white;
         }
         .jobs-list {
             display: flex;
@@ -1965,7 +1968,7 @@ export class RunDetailsPanel {
 </html>`;
     }
 
-    private buildStageHierarchy(records: TimelineRecord[]): any[] {
+    private buildStageHierarchy(records: TimelineRecord[], stageDeps: Array<{ name: string; dependsOn?: string[] }> = []): any[] {
         if (!records || records.length === 0) {
             return [];
         }
@@ -1995,9 +1998,13 @@ export class RunDetailsPanel {
                 };
             });
 
+            // Find dependency info from YAML parsing
+            const depInfo = stageDeps.find(d => d.name.toLowerCase() === stage.name.toLowerCase());
+
             return {
                 ...stage,
-                jobs: jobsWithTasks
+                jobs: jobsWithTasks,
+                dependsOn: depInfo?.dependsOn || []
             };
         });
 
@@ -2083,71 +2090,117 @@ export class RunDetailsPanel {
             return '<p>No stage information available.</p>';
         }
 
+        // Build dependency graph columns using topological sort
+        const columns = this.computeStageColumns(stages);
+
         return `
-            <div class="stage-cards">
-                ${stages.map(stage => this.renderStageCard(stage)).join('')}
+            <div class="stage-graph">
+                ${columns.map((col, colIdx) => `
+                    ${colIdx > 0 ? '<div class="stage-connector-col">' + this.renderConnectors(columns[colIdx - 1], col, stages) + '</div>' : ''}
+                    <div class="stage-column">
+                        ${col.map(stage => this.renderStageCard(stage)).join('')}
+                    </div>
+                `).join('')}
             </div>
         `;
+    }
+
+    private computeStageColumns(stages: any[]): any[][] {
+        // Map stage names to stages
+        const stageMap = new Map<string, any>();
+        stages.forEach(s => stageMap.set(s.name.toLowerCase(), s));
+
+        // Compute depth (column index) for each stage
+        const depths = new Map<string, number>();
+
+        const getDepth = (stage: any, visited: Set<string> = new Set()): number => {
+            const key = stage.name.toLowerCase();
+            if (depths.has(key)) { return depths.get(key)!; }
+            if (visited.has(key)) { return 0; } // circular dep guard
+            visited.add(key);
+
+            const deps = (stage.dependsOn || []) as string[];
+            if (deps.length === 0) {
+                depths.set(key, 0);
+                return 0;
+            }
+
+            let maxParentDepth = -1;
+            for (const dep of deps) {
+                const parent = stageMap.get(dep.toLowerCase());
+                if (parent) {
+                    maxParentDepth = Math.max(maxParentDepth, getDepth(parent, new Set(visited)));
+                }
+            }
+            const depth = maxParentDepth + 1;
+            depths.set(key, depth);
+            return depth;
+        };
+
+        stages.forEach(s => getDepth(s));
+
+        // If no dependencies found at all, treat stages as sequential
+        const allDepthZero = [...depths.values()].every(d => d === 0);
+        if (allDepthZero && stages.length > 1) {
+            stages.forEach((s, i) => depths.set(s.name.toLowerCase(), i));
+        }
+
+        // Group stages by column
+        const maxDepth = Math.max(...depths.values(), 0);
+        const columns: any[][] = [];
+        for (let d = 0; d <= maxDepth; d++) {
+            const col = stages.filter(s => depths.get(s.name.toLowerCase()) === d);
+            if (col.length > 0) { columns.push(col); }
+        }
+
+        return columns;
+    }
+
+    private renderConnectors(prevCol: any[], nextCol: any[], allStages: any[]): string {
+        // Render SVG connector lines between columns
+        const prevCount = prevCol.length;
+        const nextCount = nextCol.length;
+        const cardHeight = 64; // approximate height of a card + gap
+        const svgHeight = Math.max(prevCount, nextCount) * cardHeight;
+        const svgWidth = 32;
+
+        let paths = '';
+        for (let ni = 0; ni < nextCol.length; ni++) {
+            const nextStage = nextCol[ni];
+            const deps = (nextStage.dependsOn || []) as string[];
+            const nextY = ni * cardHeight + cardHeight / 2;
+
+            for (let pi = 0; pi < prevCol.length; pi++) {
+                const prevStage = prevCol[pi];
+                // Check if this next stage depends on this prev stage
+                const isDep = deps.length === 0 ||
+                    deps.some((d: string) => d.toLowerCase() === prevStage.name.toLowerCase());
+                if (isDep) {
+                    const prevY = pi * cardHeight + cardHeight / 2;
+                    paths += `<path d="M0,${prevY} C${svgWidth / 2},${prevY} ${svgWidth / 2},${nextY} ${svgWidth},${nextY}" fill="none" stroke="var(--vscode-panel-border)" stroke-width="2"/>`;
+                }
+            }
+        }
+
+        return `<svg width="${svgWidth}" height="${svgHeight}" style="overflow: visible;">${paths}</svg>`;
     }
 
     private renderStageCard(stage: any): string {
         const status = stage.result || stage.state;
         const statusColor = this.getStatusColor(status);
-        const icon = this.getStatusIcon(status);
         const duration = stage.startTime && stage.finishTime
             ? this.formatDuration(new Date(stage.startTime), new Date(stage.finishTime))
             : 'In progress...';
+        const jobCount = stage.jobs ? stage.jobs.length : 0;
 
-        // Mock scanning data - in a real implementation, this would come from API
-        const hasScanning = stage.name.toLowerCase().includes('build') || stage.name.toLowerCase().includes('test');
-        
         return `
             <div class="stage-card">
                 <div class="stage-card-header">
-                    <div class="stage-icon ${icon}">${this.getIconSymbol(status)}</div>
+                    <div class="stage-icon-small" style="background: ${statusColor}; color: white;">${this.getIconSymbol(status)}</div>
                     <div class="stage-card-title">${stage.name}</div>
-                    <div class="stage-card-status" style="background: ${statusColor}">
-                        ${status}
-                    </div>
                 </div>
-                <div class="stage-card-duration">Duration: ${duration}</div>
-                
-                ${hasScanning ? this.renderScanningCard() : ''}
-                
-                ${stage.jobs && stage.jobs.length > 0 ? `
-                    <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 12px;">
-                        Jobs: ${stage.jobs.length}
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    }
-
-    private renderScanningCard(): string {
-        // Mock scanning data - in a real implementation, this would come from security scanning API
-        return `
-            <div class="scanning-card">
-                <div class="scanning-card-title">
-                    <span class="scanning-card-icon">🔍</span>
-                    Source Code Scanning
-                </div>
-                <div class="scanning-card-stats">
-                    <div class="scanning-stat">
-                        <div class="scanning-stat-value">0</div>
-                        <div class="scanning-stat-label">Critical</div>
-                    </div>
-                    <div class="scanning-stat">
-                        <div class="scanning-stat-value">2</div>
-                        <div class="scanning-stat-label">High</div>
-                    </div>
-                    <div class="scanning-stat">
-                        <div class="scanning-stat-value">5</div>
-                        <div class="scanning-stat-label">Medium</div>
-                    </div>
-                </div>
-                <div style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 8px;">
-                    Last scanned: Just now
-                </div>
+                <div class="stage-card-info">${jobCount} job${jobCount !== 1 ? 's' : ''} completed</div>
+                <div class="stage-card-duration">${duration}</div>
             </div>
         `;
     }
