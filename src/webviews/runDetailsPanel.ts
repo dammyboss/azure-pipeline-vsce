@@ -2287,12 +2287,12 @@ export class RunDetailsPanel {
             : 'In progress...';
         const jobCount = stage.jobs ? stage.jobs.length : 0;
 
-        // Use spinning Azure Pipelines icon for in-progress stages
+        // Use spinning mobius loop icon for in-progress stages
         const statusLower = String(status).toLowerCase();
         const isInProgress = statusLower === 'inprogress' || statusLower === 'notstarted' || statusLower === 'running';
 
         const iconHtml = isInProgress
-            ? `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="white" d="M1.8 22.2H6V24H0v-6h1.8v4.2zM12.623 9.898l-7.635 7.635 1.479 1.479 7.634-7.636-1.478-1.478zm-8.258 5.281-.391-.39a1.504 1.504 0 0 1-.187-1.894L8.391 6H.998A1 1 0 0 0 0 7v5.5l3.502 3.604.863-.924zM24 1v8.93a2 2 0 0 1-.89 1.664l-12.283 8.2a1 1 0 0 1-1.262-.124L8.04 18.146l6.768-6.77-2.185-2.186-6.77 6.77-1.525-1.525a1 1 0 0 1-.125-1.262l8.2-12.284A2 2 0 0 1 14.067 0H23a1 1 0 0 1 1 1zm-3 5a3 3 0 1 0-6 0 3 3 0 0 0 6 0zM10.272 20.462c-.4 0-.778-.156-1.06-.439l-.369-.368-.843.842 3.5 3.5H17a1 1 0 0 0 1-1v-7.39l-6.896 4.603a1.494 1.494 0 0 1-.832.253z"/></svg>`
+            ? `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="white" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>`
             : this.getIconSymbol(status);
 
         return `
