@@ -179,6 +179,11 @@ export class PipelinesTreeProvider implements vscode.TreeDataProvider<PipelineTr
         }
 
         try {
+            const config = this.client.getConfig();
+            if (!config.organizationUrl || !config.projectName) {
+                return [];
+            }
+
             // Fetch all pipelines
             this.pipelines = await this.client.getPipelines();
 

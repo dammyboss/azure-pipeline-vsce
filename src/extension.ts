@@ -90,7 +90,7 @@ export async function activate(context: vscode.ExtensionContext) {
             connectionStatusProvider.refresh();
             pipelinesProvider.refresh();
             runsProvider.refresh();
-            stagesProvider.refresh();
+            stagesProvider.clear();
             serviceConnectionsProvider.refresh();
             updateStatusBar();
         }),
@@ -122,8 +122,9 @@ export async function activate(context: vscode.ExtensionContext) {
     }
 
     // Set up auto-refresh for runs, pipelines, and stages (every 30 seconds)
-    const refreshInterval = setInterval(() => {
-        if (configManager.isConfigured()) {
+    const refreshInterval = setInterval(async () => {
+        const isAuthenticated = await authProvider.isAuthenticated();
+        if (isAuthenticated && configManager.isConfigured()) {
             runsProvider.refresh();
             pipelinesProvider.refresh();
             // Only refresh stages if there's a current run loaded
