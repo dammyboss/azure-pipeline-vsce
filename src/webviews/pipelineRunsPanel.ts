@@ -480,7 +480,7 @@ export class PipelineRunsPanel {
             justify-content: center;
         }
 
-        .stage-icon.spinning {
+        .spinning {
             animation: spin 2s linear infinite;
         }
 

@@ -2097,7 +2097,7 @@ export class RunDetailsPanel {
 
     private renderStage(stage: any): string {
         const status = stage.result || stage.state;
-        const icon = this.getStatusIcon(status);
+        const statusColor = this.getStatusColor(status);
         const duration = stage.startTime && stage.finishTime
             ? this.formatDuration(new Date(stage.startTime), new Date(stage.finishTime))
             : '';
@@ -2113,7 +2113,7 @@ export class RunDetailsPanel {
             <div class="stage">
                 <div class="stage-header" onclick="toggleStage(this)">
                     <span class="expand-icon"></span>
-                    <div class="stage-icon ${icon}${isInProgress ? ' spinning' : ''}">${iconHtml}</div>
+                    <div class="stage-icon${isInProgress ? ' spinning' : ''}" style="background: ${statusColor}; color: white;">${iconHtml}</div>
                     <span class="stage-name">${stage.name}</span>
                     <span class="stage-duration">${duration}</span>
                 </div>
@@ -2126,7 +2126,7 @@ export class RunDetailsPanel {
 
     private renderJob(job: any): string {
         const status = job.result || job.state;
-        const icon = this.getStatusIcon(status);
+        const statusColor = this.getStatusColor(status);
         const duration = job.startTime && job.finishTime
             ? this.formatDuration(new Date(job.startTime), new Date(job.finishTime))
             : '';
@@ -2146,7 +2146,7 @@ export class RunDetailsPanel {
                 <div class="job" onclick="toggleJob(this)">
                     ${hasTasks ? '<span class="job-expand-icon">▶</span>' : ''}
                     <div class="job-info">
-                        <div class="stage-icon ${icon}${isInProgress ? ' spinning' : ''}">${iconHtml}</div>
+                        <div class="stage-icon${isInProgress ? ' spinning' : ''}" style="background: ${statusColor}; color: white;">${iconHtml}</div>
                         <span style="flex: 1;">
                             ${job.name}
                             ${hasTasks ? `<span style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-left: 8px;">(${completedTasks}/${taskCount} tasks)</span>` : ''}
