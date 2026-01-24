@@ -74,6 +74,11 @@ export class ServiceConnectionsTreeProvider implements vscode.TreeDataProvider<S
         }
 
         try {
+            const config = this.client.getConfig();
+            if (!config.organizationUrl || !config.projectName) {
+                return [];
+            }
+
             this.connections = await this.client.getServiceEndpoints();
             
             return this.connections.map(

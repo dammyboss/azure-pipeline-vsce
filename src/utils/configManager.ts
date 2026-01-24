@@ -58,6 +58,8 @@ export class ConfigManager {
         await this.context.globalState.update(ConfigManager.ORG_URL_KEY, undefined);
         await this.context.globalState.update(ConfigManager.ORG_NAME_KEY, undefined);
         await this.context.globalState.update(ConfigManager.PROJECT_NAME_KEY, undefined);
+        // Reset the client's internal config so providers won't attempt API calls
+        await this.client.initialize('', '');
     }
 
     /**
