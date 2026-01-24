@@ -4,7 +4,6 @@ import { Pipeline, PipelineRun, Timeline } from '../models/types';
 import { formatTimeAgo, formatDurationBetween } from '../utils/formatDuration';
 
 interface PipelineRunFilter {
-    searchText?: string;
     state?: string[];
     branch?: string[];
     requestedFor?: string[];
@@ -197,16 +196,6 @@ export class PipelineRunsPanel {
     }
 
     private matchesFilter(run: PipelineRun): boolean {
-        // Filter by search text (run number or build number)
-        if (this.currentFilter.searchText) {
-            const searchLower = this.currentFilter.searchText.toLowerCase();
-            const buildNumber = (run.buildNumber || '').toLowerCase();
-            const runId = String(run.id).toLowerCase();
-            if (!buildNumber.includes(searchLower) && !runId.includes(searchLower)) {
-                return false;
-            }
-        }
-
         // Filter by state
         if (this.currentFilter.state && this.currentFilter.state.length > 0) {
             const runState = (run.result || run.status || '').toLowerCase();
@@ -542,7 +531,7 @@ export class PipelineRunsPanel {
             class="filter-search"
             id="searchInput"
             placeholder="Filter by pipeline name or run number"
-            value="${this.escapeHtml(this.currentFilter.searchText || '')}"
+            value=""
             oninput="updateSearchFilter(this.value)"
         />
 
@@ -616,7 +605,7 @@ export class PipelineRunsPanel {
             </div>
         </div>
 
-        ${(this.currentFilter.searchText || this.currentFilter.state || this.currentFilter.branch || this.currentFilter.requestedFor || this.currentFilter.repository) ? `
+        ${(this.currentFilter.state || this.currentFilter.branch || this.currentFilter.requestedFor || this.currentFilter.repository) ? `
             <button class="filter-clear-btn" onclick="clearAllFilters()">✕ Clear</button>
         ` : ''}
     </div>
@@ -660,7 +649,7 @@ export class PipelineRunsPanel {
                     const commitMessage = run.commitMessage ? run.commitMessage.split('\n')[0] : '';
 
                     return `
-                        <tr class="run-row" onclick="openRun(${run.id})">
+                        <tr class="run-row" data-search="${this.escapeHtml((run.buildNumber || String(run.id)).toLowerCase())}" onclick="openRun(${run.id})">
                             <td>
                                 <div class="run-description">
                                     ${this.getRunStatusIcon(run)}
@@ -739,8 +728,15 @@ export class PipelineRunsPanel {
         });
 
         function updateSearchFilter(value) {
-            currentFilter.searchText = value || undefined;
-            applyFilter();
+            const searchLower = (value || '').toLowerCase();
+            document.querySelectorAll('.run-row').forEach(row => {
+                const searchData = row.getAttribute('data-search') || '';
+                if (!searchLower || searchData.includes(searchLower)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
         }
 
         function updateStateFilter() {
@@ -781,6 +777,9 @@ export class PipelineRunsPanel {
 
         function clearAllFilters() {
             currentFilter = {};
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) { searchInput.value = ''; }
+            document.querySelectorAll('.run-row').forEach(row => { row.style.display = ''; });
             vscode.postMessage({ command: 'clearFilter' });
         }
 
