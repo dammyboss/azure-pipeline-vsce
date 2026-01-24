@@ -2027,12 +2027,22 @@ export class RunDetailsPanel {
                 return stageNameMap.get(depLower) || dep;
             });
 
-            return {
+            const result = {
                 ...stage,
                 jobs: jobsWithTasks,
                 dependsOn: resolvedDependsOn
             };
+
+            console.log(`[buildStageHierarchy] Stage "${stage.name}":`, {
+                yamlMatch: depInfo ? `${depInfo.name} (displayName: ${depInfo.displayName})` : 'NOT FOUND',
+                rawDeps: depInfo?.dependsOn,
+                resolvedDeps: resolvedDependsOn
+            });
+
+            return result;
         });
+
+        console.log('[buildStageHierarchy] Final hierarchy:', hierarchy.map(h => ({ name: h.name, dependsOn: h.dependsOn })));
 
         return hierarchy;
     }
@@ -2132,9 +2142,13 @@ export class RunDetailsPanel {
     }
 
     private computeStageColumns(stages: any[]): any[][] {
+        console.log('[computeStageColumns] Input stages:', stages.map(s => ({ name: s.name, dependsOn: s.dependsOn })));
+
         // Map stage names to stages
         const stageMap = new Map<string, any>();
         stages.forEach(s => stageMap.set(s.name.toLowerCase(), s));
+
+        console.log('[computeStageColumns] Stage map keys:', [...stageMap.keys()]);
 
         // Compute depth (column index) for each stage
         const depths = new Map<string, number>();
@@ -2146,6 +2160,8 @@ export class RunDetailsPanel {
             visited.add(key);
 
             const deps = (stage.dependsOn || []) as string[];
+            console.log(`[getDepth] Stage "${stage.name}" depends on:`, deps);
+
             if (deps.length === 0) {
                 depths.set(key, 0);
                 return 0;
@@ -2153,21 +2169,30 @@ export class RunDetailsPanel {
 
             let maxParentDepth = -1;
             for (const dep of deps) {
-                const parent = stageMap.get(dep.toLowerCase());
+                const depKey = dep.toLowerCase();
+                console.log(`[getDepth] Looking for dependency "${dep}" (key: "${depKey}")`);
+                const parent = stageMap.get(depKey);
                 if (parent) {
+                    console.log(`[getDepth] Found parent: "${parent.name}"`);
                     maxParentDepth = Math.max(maxParentDepth, getDepth(parent, new Set(visited)));
+                } else {
+                    console.log(`[getDepth] Parent NOT found for "${dep}"`);
                 }
             }
             const depth = maxParentDepth + 1;
+            console.log(`[getDepth] Stage "${stage.name}" assigned depth ${depth}`);
             depths.set(key, depth);
             return depth;
         };
 
         stages.forEach(s => getDepth(s));
 
+        console.log('[computeStageColumns] Depths:', [...depths.entries()]);
+
         // If no dependencies found at all, treat stages as sequential
         const allDepthZero = [...depths.values()].every(d => d === 0);
         if (allDepthZero && stages.length > 1) {
+            console.log('[computeStageColumns] All depths are 0, making sequential');
             stages.forEach((s, i) => depths.set(s.name.toLowerCase(), i));
         }
 
@@ -2178,6 +2203,8 @@ export class RunDetailsPanel {
             const col = stages.filter(s => depths.get(s.name.toLowerCase()) === d);
             if (col.length > 0) { columns.push(col); }
         }
+
+        console.log('[computeStageColumns] Final columns:', columns.map((col, idx) => ({ column: idx, stages: col.map(s => s.name) })));
 
         return columns;
     }
