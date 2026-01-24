@@ -689,6 +689,13 @@ export class RunDetailsPanel {
             justify-content: center;
             font-size: 12px;
         }
+        .stage-icon.spinning {
+            animation: spin 2s linear infinite;
+        }
+        .stage-icon svg {
+            width: 16px;
+            height: 16px;
+        }
         .stage-name { flex: 1; font-weight: 600; }
         .stage-duration { font-size: 12px; color: var(--vscode-descriptionForeground); }
         .stage-body { display: none; padding: 0; }
@@ -2089,16 +2096,24 @@ export class RunDetailsPanel {
     }
 
     private renderStage(stage: any): string {
-        const icon = this.getStatusIcon(stage.result || stage.state);
+        const status = stage.result || stage.state;
+        const icon = this.getStatusIcon(status);
         const duration = stage.startTime && stage.finishTime
             ? this.formatDuration(new Date(stage.startTime), new Date(stage.finishTime))
             : '';
+
+        // Use spinning 3-line loader for in-progress stages
+        const statusLower = String(status).toLowerCase();
+        const isInProgress = statusLower === 'inprogress' || statusLower === 'notstarted' || statusLower === 'running';
+        const iconHtml = isInProgress
+            ? `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M12 3 A9 9 0 0 1 19.5 7.5"/><path d="M19.5 16.5 A9 9 0 0 1 12 21"/><path d="M4.5 16.5 A9 9 0 0 1 4.5 7.5"/></g></svg>`
+            : this.getIconSymbol(status);
 
         return `
             <div class="stage">
                 <div class="stage-header" onclick="toggleStage(this)">
                     <span class="expand-icon"></span>
-                    <div class="stage-icon ${icon}">${this.getIconSymbol(stage.result || stage.state)}</div>
+                    <div class="stage-icon ${icon}${isInProgress ? ' spinning' : ''}">${iconHtml}</div>
                     <span class="stage-name">${stage.name}</span>
                     <span class="stage-duration">${duration}</span>
                 </div>
@@ -2110,7 +2125,8 @@ export class RunDetailsPanel {
     }
 
     private renderJob(job: any): string {
-        const icon = this.getStatusIcon(job.result || job.state);
+        const status = job.result || job.state;
+        const icon = this.getStatusIcon(status);
         const duration = job.startTime && job.finishTime
             ? this.formatDuration(new Date(job.startTime), new Date(job.finishTime))
             : '';
@@ -2118,12 +2134,19 @@ export class RunDetailsPanel {
         const taskCount = hasTasks ? job.tasks.length : 0;
         const completedTasks = hasTasks ? job.tasks.filter((t: any) => t.result === 'succeeded').length : 0;
 
+        // Use spinning 3-line loader for in-progress jobs
+        const statusLower = String(status).toLowerCase();
+        const isInProgress = statusLower === 'inprogress' || statusLower === 'notstarted' || statusLower === 'running';
+        const iconHtml = isInProgress
+            ? `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M12 3 A9 9 0 0 1 19.5 7.5"/><path d="M19.5 16.5 A9 9 0 0 1 12 21"/><path d="M4.5 16.5 A9 9 0 0 1 4.5 7.5"/></g></svg>`
+            : this.getIconSymbol(status);
+
         return `
             <div class="job-container ${hasTasks ? 'expanded' : ''}">
                 <div class="job" onclick="toggleJob(this)">
                     ${hasTasks ? '<span class="job-expand-icon">▶</span>' : ''}
                     <div class="job-info">
-                        <div class="stage-icon ${icon}">${this.getIconSymbol(job.result || job.state)}</div>
+                        <div class="stage-icon ${icon}${isInProgress ? ' spinning' : ''}">${iconHtml}</div>
                         <span style="flex: 1;">
                             ${job.name}
                             ${hasTasks ? `<span style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-left: 8px;">(${completedTasks}/${taskCount} tasks)</span>` : ''}

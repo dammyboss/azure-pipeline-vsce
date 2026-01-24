@@ -161,8 +161,8 @@ export class PipelineRunsPanel {
             return '<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #ff8c00; color: white; font-size: 11px; font-weight: bold;">!</span>';
         } else if (resultLower === 'canceled' || resultLower === 'cancelled') {
             return '<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #605e5c; color: white; font-size: 11px;">○</span>';
-        } else if (resultLower === 'inprogress') {
-            return '<span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #0078d4; color: white; font-size: 11px;">●</span>';
+        } else if (resultLower === 'inprogress' || resultLower === 'notstarted' || resultLower === 'running') {
+            return '<span class="spinning" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background-color: #0078d4;"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width: 14px; height: 14px;"><g fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M12 3 A9 9 0 0 1 19.5 7.5"/><path d="M19.5 16.5 A9 9 0 0 1 12 21"/><path d="M4.5 16.5 A9 9 0 0 1 4.5 7.5"/></g></svg></span>';
         }
         return '<span style="color: var(--vscode-descriptionForeground); font-size: 16px;">-</span>';
     }
@@ -478,6 +478,15 @@ export class PipelineRunsPanel {
             display: inline-flex;
             align-items: center;
             justify-content: center;
+        }
+
+        .stage-icon.spinning {
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         .time-info {
