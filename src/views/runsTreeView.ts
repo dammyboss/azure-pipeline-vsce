@@ -121,7 +121,10 @@ export class RunTreeItem extends vscode.TreeItem {
         }
 
         if (resultStr === 'partiallysucceeded') {
-            return new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.orange'));
+            const iconPath = vscode.Uri.file(
+                path.join(__dirname, '..', '..', 'resources', 'icons', 'status-partial.svg')
+            );
+            return { light: iconPath, dark: iconPath };
         }
 
         if (resultStr === 'canceled') {

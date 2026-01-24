@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { Pipeline, PipelineRun, RunResult, RunStatus } from '../models/types';
 
@@ -91,7 +92,7 @@ export class PipelineTreeItem extends vscode.TreeItem {
         return parts.join(' ');
     }
 
-    private getStatusIcon(): vscode.ThemeIcon {
+    private getStatusIcon(): vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri } {
         if (!this.pipeline.latestRun) {
             // No runs yet - use default icon
             return new vscode.ThemeIcon('repo');
@@ -110,7 +111,7 @@ export class PipelineTreeItem extends vscode.TreeItem {
 
         // Check if running
         if (statusStr === 'inprogress' || statusStr === 'notstarted') {
-            return new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('charts.blue'));
+            return new vscode.ThemeIcon('loading~spin', new vscode.ThemeColor('charts.blue'));
         }
 
         // Check result
@@ -119,19 +120,31 @@ export class PipelineTreeItem extends vscode.TreeItem {
             // Even succeeded runs can have warnings -> show orange
             if (this.pipeline.hasWarnings) {
                 console.log(`Pipeline ${this.pipeline.name} has warnings - showing orange icon`);
-                return new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.orange'));
+                const iconPath = vscode.Uri.file(
+                    path.join(__dirname, '..', '..', 'resources', 'icons', 'status-partial.svg')
+                );
+                return { light: iconPath, dark: iconPath };
             }
-            return new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'));
+            const iconPath = vscode.Uri.file(
+                path.join(__dirname, '..', '..', 'resources', 'icons', 'status-success.svg')
+            );
+            return { light: iconPath, dark: iconPath };
         }
 
         if (resultStr === 'failed') {
-            return new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));
+            const iconPath = vscode.Uri.file(
+                path.join(__dirname, '..', '..', 'resources', 'icons', 'status-failed.svg')
+            );
+            return { light: iconPath, dark: iconPath };
         }
 
         if (resultStr === 'partiallysucceeded') {
             // PartiallySucceeded means some tasks failed but run continued - ORANGE
             console.log(`Pipeline ${this.pipeline.name} is PartiallySucceeded (${run.result}) - showing orange icon`);
-            return new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.orange'));
+            const iconPath = vscode.Uri.file(
+                path.join(__dirname, '..', '..', 'resources', 'icons', 'status-partial.svg')
+            );
+            return { light: iconPath, dark: iconPath };
         }
 
         if (resultStr === 'canceled') {
