@@ -3,6 +3,8 @@ import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { PipelineRun, TimelineRecord } from '../models/types';
 
 export class RunDetailsPanel {
+    private static currentPanel: RunDetailsPanel | undefined;
+
     private readonly panel: vscode.WebviewPanel;
     private disposables: vscode.Disposable[] = [];
     private refreshInterval?: NodeJS.Timeout;
@@ -15,7 +17,7 @@ export class RunDetailsPanel {
         this.panel = panel;
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
         this.update();
-        
+
         // Auto-refresh if running
         if (this.run.status === 'inProgress' || this.run.status === 'notStarted') {
             this.startAutoRefresh();
@@ -67,9 +69,27 @@ export class RunDetailsPanel {
     public static async show(client: AzureDevOpsClient, run: PipelineRun) {
         const column = vscode.window.activeTextEditor?.viewColumn || vscode.ViewColumn.One;
 
+        // Fetch the latest run data to ensure we have accurate status
+        let freshRun: PipelineRun;
+        try {
+            freshRun = await client.getRun(run.id);
+        } catch (error) {
+            console.error('Failed to fetch run details, using cached data:', error);
+            freshRun = run;
+        }
+
+        // If we already have a panel, update it with the new run
+        if (RunDetailsPanel.currentPanel) {
+            RunDetailsPanel.currentPanel.panel.reveal(column);
+            RunDetailsPanel.currentPanel.panel.title = `Run: ${freshRun.buildNumber || freshRun.name}`;
+            await RunDetailsPanel.currentPanel.switchToRun(freshRun);
+            return;
+        }
+
+        // Otherwise, create a new panel
         const panel = vscode.window.createWebviewPanel(
             'runDetails',
-            `Run: ${run.buildNumber || run.name}`,
+            `Run: ${freshRun.buildNumber || freshRun.name}`,
             column,
             {
                 enableScripts: true,
@@ -77,14 +97,7 @@ export class RunDetailsPanel {
             }
         );
 
-        // Fetch the latest run data to ensure we have accurate status
-        try {
-            const freshRun = await client.getRun(run.id);
-            new RunDetailsPanel(panel, client, freshRun);
-        } catch (error) {
-            console.error('Failed to fetch run details, using cached data:', error);
-            new RunDetailsPanel(panel, client, run);
-        }
+        RunDetailsPanel.currentPanel = new RunDetailsPanel(panel, client, freshRun);
     }
 
     private startAutoRefresh() {
@@ -93,10 +106,19 @@ export class RunDetailsPanel {
                 // Refresh run data
                 this.run = await this.client.getRun(this.run.id);
                 await this.update();
-                
-                // Stop auto-refresh if completed
+
+                // Stop auto-refresh if completed, but do one final update after a short delay
                 if (this.run.status === 'completed') {
                     this.stopAutoRefresh();
+                    // Do one final update after 1 second to ensure all timeline records are updated
+                    setTimeout(async () => {
+                        try {
+                            this.run = await this.client.getRun(this.run.id);
+                            await this.update();
+                        } catch (error) {
+                            console.error('Final refresh failed:', error);
+                        }
+                    }, 1000);
                 }
             } catch (error) {
                 console.error('Auto-refresh failed:', error);
@@ -2393,7 +2415,22 @@ export class RunDetailsPanel {
         }
     }
 
+    private async switchToRun(run: PipelineRun) {
+        // Stop any existing auto-refresh
+        this.stopAutoRefresh();
+
+        // Update to new run
+        this.run = run;
+        await this.update();
+
+        // Start auto-refresh if the new run is in progress
+        if (this.run.status === 'inProgress' || this.run.status === 'notStarted') {
+            this.startAutoRefresh();
+        }
+    }
+
     public dispose() {
+        RunDetailsPanel.currentPanel = undefined;
         this.stopAutoRefresh();
         this.panel.dispose();
         while (this.disposables.length) {
