@@ -97,20 +97,20 @@ export class RunTreeItem extends vscode.TreeItem {
         return 'run';
     }
 
-    private getStatusIcon(): vscode.ThemeIcon {
+    private getStatusIcon(): vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri } {
         const statusStr = String(this.run.status || '').toLowerCase();
         const resultStr = String(this.run.result || '').toLowerCase();
 
         if (statusStr === 'inprogress' || statusStr === 'notstarted') {
-            return new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('charts.blue'));
+            return new vscode.ThemeIcon('loading~spin', new vscode.ThemeColor('charts.blue'));
         }
 
         if (resultStr === 'succeeded') {
-            return new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'));
+            return new vscode.ThemeIcon('check', new vscode.ThemeColor('testing.iconPassed'));
         }
 
         if (resultStr === 'failed') {
-            return new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));
+            return new vscode.ThemeIcon('close', new vscode.ThemeColor('testing.iconFailed'));
         }
 
         if (resultStr === 'partiallysucceeded') {

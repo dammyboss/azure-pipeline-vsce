@@ -67,16 +67,16 @@ export class StageTreeItem extends vscode.TreeItem {
 
         // Check if in progress
         if (state === 'inprogress' || state === 'pending') {
-            return new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('charts.blue'));
+            return new vscode.ThemeIcon('loading~spin', new vscode.ThemeColor('charts.blue'));
         }
 
         // Check result
         if (result === 'succeeded') {
-            return new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'));
+            return new vscode.ThemeIcon('check', new vscode.ThemeColor('testing.iconPassed'));
         }
 
         if (result === 'failed') {
-            return new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));
+            return new vscode.ThemeIcon('close', new vscode.ThemeColor('testing.iconFailed'));
         }
 
         if (result === 'partiallysucceeded') {

@@ -2426,8 +2426,8 @@ export class RunDetailsPanel {
 
     private getIconSymbol(status: string): string {
         const s = String(status).toLowerCase();
-        if (s === 'succeeded') return '✓';
-        if (s === 'failed') return '✗';
+        if (s === 'succeeded') return '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" style="width: 14px; height: 14px;"><path d="M6.5 11L3 7.5l1-1 2.5 2.5L11 4.5l1 1z" fill="white"/></svg>';
+        if (s === 'failed') return '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" style="width: 14px; height: 14px;"><path d="M4 4l8 8M12 4l-8 8" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>';
         if (s === 'inprogress') return '●';
         if (s === 'partiallysucceeded') return '⚠';
         return '○';
