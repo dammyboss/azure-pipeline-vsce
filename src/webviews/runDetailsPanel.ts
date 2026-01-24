@@ -222,9 +222,11 @@ export class RunDetailsPanel {
 
             // Identify which stages to run (only the failed ones)
             const stagesToRun = stages
-                .filter(stage => failedStages.some(failedStage =>
-                    failedStage.toLowerCase().includes(stage.name.toLowerCase())
-                ))
+                .filter(stage => failedStages.some(failedStage => {
+                    const stageDisplayName = stage.displayName || stage.name;
+                    return failedStage.toLowerCase().includes(stageDisplayName.toLowerCase()) ||
+                           failedStage.toLowerCase().includes(stage.name.toLowerCase());
+                }))
                 .map(stage => stage.name);
 
             // Send data to webview to show the modal form with only failed stages pre-selected
@@ -266,7 +268,7 @@ export class RunDetailsPanel {
         }
     }
 
-    private async fetchStages(pipelineId: number): Promise<Array<{ name: string; dependsOn?: string[] }>> {
+    private async fetchStages(pipelineId: number): Promise<Array<{ name: string; displayName?: string; dependsOn?: string[] }>> {
         try {
             const yaml = await this.client.getPipelineYaml(pipelineId);
 
@@ -275,10 +277,10 @@ export class RunDetailsPanel {
             console.log('First 500 chars of YAML:', yaml.substring(0, 500));
 
             // Extract stages with their dependencies
-            const stages: Array<{ name: string; dependsOn?: string[] }> = [];
+            const stages: Array<{ name: string; displayName?: string; dependsOn?: string[] }> = [];
             const lines = yaml.split('\n');
 
-            let currentStage: { name: string; dependsOn?: string[] } | null = null;
+            let currentStage: { name: string; displayName?: string; dependsOn?: string[] } | null = null;
             let inDependsOn = false;
             let inStagesSection = false;
 
@@ -292,11 +294,7 @@ export class RunDetailsPanel {
                     continue;
                 }
 
-                // Only look for stage definitions if we're in the stages section
-                // OR if there's no explicit stages: keyword (single-stage pipelines might not have it)
-
                 // Match stage definition: - stage: StageName or -stage:StageName
-                // More flexible regex that handles various whitespace scenarios
                 const stageMatch = line.match(/^\s*-\s*stage:\s*(.+)$/i);
                 if (stageMatch) {
                     if (currentStage) {
@@ -308,6 +306,16 @@ export class RunDetailsPanel {
                     };
                     inDependsOn = false;
                     console.log('Found stage:', stageName, 'at line', i);
+                    continue;
+                }
+
+                // Match displayName for current stage
+                if (currentStage && line.match(/^\s*displayName:\s*(.+)$/)) {
+                    const displayMatch = line.match(/^\s*displayName:\s*(.+)$/);
+                    if (displayMatch) {
+                        currentStage.displayName = displayMatch[1].trim().replace(/['"]/g, '');
+                        console.log('Found displayName:', currentStage.displayName);
+                    }
                     continue;
                 }
 
@@ -1968,7 +1976,7 @@ export class RunDetailsPanel {
 </html>`;
     }
 
-    private buildStageHierarchy(records: TimelineRecord[], stageDeps: Array<{ name: string; dependsOn?: string[] }> = []): any[] {
+    private buildStageHierarchy(records: TimelineRecord[], stageDeps: Array<{ name: string; displayName?: string; dependsOn?: string[] }> = []): any[] {
         if (!records || records.length === 0) {
             return [];
         }
@@ -1999,12 +2007,30 @@ export class RunDetailsPanel {
             });
 
             // Find dependency info from YAML parsing
-            const depInfo = stageDeps.find(d => d.name.toLowerCase() === stage.name.toLowerCase());
+            // Match by displayName first, then fallback to internal stage name
+            const depInfo = stageDeps.find(d => {
+                const yamlDisplayName = d.displayName?.toLowerCase();
+                const yamlInternalName = d.name.toLowerCase();
+                const timelineName = stage.name.toLowerCase();
+                return yamlDisplayName === timelineName || yamlInternalName === timelineName;
+            });
+
+            // Build a map from internal stage names to displayNames for dependency resolution
+            const stageNameMap = new Map<string, string>();
+            stageDeps.forEach(sd => {
+                stageNameMap.set(sd.name.toLowerCase(), sd.displayName || sd.name);
+            });
+
+            // Resolve dependsOn from internal names to displayNames
+            const resolvedDependsOn = (depInfo?.dependsOn || []).map(dep => {
+                const depLower = dep.toLowerCase();
+                return stageNameMap.get(depLower) || dep;
+            });
 
             return {
                 ...stage,
                 jobs: jobsWithTasks,
-                dependsOn: depInfo?.dependsOn || []
+                dependsOn: resolvedDependsOn
             };
         });
 
