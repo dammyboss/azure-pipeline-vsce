@@ -2287,12 +2287,12 @@ export class RunDetailsPanel {
             : 'In progress...';
         const jobCount = stage.jobs ? stage.jobs.length : 0;
 
-        // Use spinning mobius loop icon for in-progress stages
+        // Use spinning 3-line loader for in-progress stages
         const statusLower = String(status).toLowerCase();
         const isInProgress = statusLower === 'inprogress' || statusLower === 'notstarted' || statusLower === 'running';
 
         const iconHtml = isInProgress
-            ? `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="white" d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>`
+            ? `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M12 3 A9 9 0 0 1 19.5 7.5"/><path d="M19.5 16.5 A9 9 0 0 1 12 21"/><path d="M4.5 16.5 A9 9 0 0 1 4.5 7.5"/></g></svg>`
             : this.getIconSymbol(status);
 
         return `
