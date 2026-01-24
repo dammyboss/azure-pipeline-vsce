@@ -94,8 +94,11 @@ export class PipelineTreeItem extends vscode.TreeItem {
 
     private getStatusIcon(): vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri } {
         if (!this.pipeline.latestRun) {
-            // No runs yet - use default icon
-            return new vscode.ThemeIcon('repo');
+            // No runs yet - use white circle icon
+            const iconPath = vscode.Uri.file(
+                path.join(__dirname, '..', '..', 'resources', 'icons', 'status-no-runs.svg')
+            );
+            return { light: iconPath, dark: iconPath };
         }
 
         const run = this.pipeline.latestRun;
