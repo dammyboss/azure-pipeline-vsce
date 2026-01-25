@@ -2,7 +2,7 @@
   "name": "azure-devops-pipelines",
   "displayName": "Azure DevOps Pipelines",
   "description": "Complete Azure DevOps Pipeline management directly from VSCode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "Damilola",
   "icon": "resources/icons/extension-icon.png",
   "repository": {
