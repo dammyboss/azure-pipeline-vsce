@@ -17,13 +17,12 @@ export class AzureDevOpsAuthProvider {
 
     /**
      * Sign in to Azure DevOps using Microsoft authentication
-     * Always shows account picker for user to select account
+     * Shows account picker, then tenant picker if user has multiple tenants
      */
     async signIn(): Promise<vscode.AuthenticationSession> {
         try {
-            // Request authentication using VSCode's Microsoft authentication provider
-            // Always force account picker to show for explicit sign-in
-            this.session = await vscode.authentication.getSession(
+            // Step 1: Get all available Microsoft accounts
+            const session = await vscode.authentication.getSession(
                 'microsoft',
                 AzureDevOpsAuthProvider.SCOPES,
                 {
@@ -32,8 +31,55 @@ export class AzureDevOpsAuthProvider {
                 }
             );
 
+            if (!session) {
+                throw new Error('Failed to create authentication session');
+            }
+
+            // Step 2: Ask if user wants to switch tenant
+            const switchTenant = await vscode.window.showQuickPick(
+                [
+                    { label: 'Use primary tenant', value: false },
+                    { label: 'Switch to different tenant', value: true }
+                ],
+                { placeHolder: 'Do you want to switch to a different tenant?' }
+            );
+
+            if (!switchTenant || !switchTenant.value) {
+                // Use current session
+                this.session = session;
+                await this.context.secrets.store('ado-session-id', this.session.id);
+                this.onDidChangeSessionEmitter.fire(this.session);
+                vscode.commands.executeCommand('setContext', 'azurePipelines.signedIn', true);
+                vscode.window.showInformationMessage('Successfully signed in to Azure DevOps');
+                return this.session;
+            }
+
+            // Step 3: Show command palette to select tenant
+            const tenantId = await vscode.window.showInputBox({
+                prompt: 'Enter Tenant ID (you can find this in Azure Portal)',
+                placeHolder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+                validateInput: (value) => {
+                    if (!value || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+                        return 'Please enter a valid tenant ID (GUID format)';
+                    }
+                    return null;
+                }
+            });
+
+            if (!tenantId) {
+                throw new Error('Tenant selection cancelled');
+            }
+
+            // Step 4: Re-authenticate with selected tenant
+            this.session = await vscode.authentication.getSession(
+                'microsoft',
+                [`${AzureDevOpsAuthProvider.SCOPES[0]}`, `VSCODE_TENANT:${tenantId}`],
+                { forceNewSession: true }
+            );
+
             if (this.session) {
                 await this.context.secrets.store('ado-session-id', this.session.id);
+                await this.context.secrets.store('ado-tenant-id', tenantId);
                 this.onDidChangeSessionEmitter.fire(this.session);
 
                 vscode.commands.executeCommand('setContext', 'azurePipelines.signedIn', true);
@@ -58,6 +104,7 @@ export class AzureDevOpsAuthProvider {
         if (this.session) {
             // Clear our stored session data
             await this.context.secrets.delete('ado-session-id');
+            await this.context.secrets.delete('ado-tenant-id');
 
             this.session = undefined;
             this.onDidChangeSessionEmitter.fire(undefined);

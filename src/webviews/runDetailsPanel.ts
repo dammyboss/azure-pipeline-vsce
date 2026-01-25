@@ -583,9 +583,12 @@ export class RunDetailsPanel {
         const statusColor = this.getStatusColor(this.run.result || this.run.status);
 
         const stages = this.buildStageHierarchy(records, stageDeps);
-        const duration = this.run.finishedDate && this.run.createdDate
-            ? this.formatDuration(new Date(this.run.createdDate), new Date(this.run.finishedDate))
-            : 'In progress...';
+        const duration = (this.run.finishTime || this.run.finishedDate) && (this.run.startTime || this.run.createdDate)
+            ? this.formatDuration(
+                new Date(this.run.startTime || this.run.createdDate!),
+                new Date(this.run.finishTime || this.run.finishedDate!)
+              )
+            : (this.run.status === 'completed' || this.run.result ? 'N/A' : 'In progress...');
         
         const hasTimeline = stages.length > 0;
 
@@ -1410,7 +1413,7 @@ export class RunDetailsPanel {
         <div class="meta">
             <span class="status">${this.run.result || this.run.status}</span>
             <span>Branch: ${this.run.sourceBranch?.replace('refs/heads/', '') || 'N/A'}</span>
-            <span>Duration: ${duration}</span>
+            <span>Duration: ${(this.run.finishTime || this.run.finishedDate) && (this.run.startTime || this.run.createdDate) ? this.formatDuration(new Date(this.run.startTime || this.run.createdDate!), new Date(this.run.finishTime || this.run.finishedDate!)) : (this.run.status === 'completed' || this.run.result ? 'N/A' : 'In progress...')}</span>
             <span>Started: ${this.run.createdDate ? new Date(this.run.createdDate).toLocaleString() : 'N/A'}</span>
             ${this.run.requestedBy?.displayName || this.run.requestedFor?.displayName ? `<span>By: ${this.run.requestedBy?.displayName || this.run.requestedFor?.displayName}</span>` : ''}
         </div>
@@ -1443,7 +1446,7 @@ export class RunDetailsPanel {
             <div class="summary-grid">
             <div class="summary-item">
                 <span class="summary-label">Repository</span>
-                <span class="summary-value">${this.run.repository?.id || this.run.repository?.name || 'N/A'}</span>
+                <span class="summary-value">${this.run.repository?.name || this.run.repository?.id || 'N/A'}</span>
             </div>
             <div class="summary-item">
                 <span class="summary-label">Branch</span>
@@ -1459,7 +1462,7 @@ export class RunDetailsPanel {
             </div>
             <div class="summary-item">
                 <span class="summary-label">Started</span>
-                <span class="summary-value">${this.run.createdDate ? new Date(this.run.createdDate).toLocaleString() : 'N/A'}</span>
+                <span class="summary-value">${this.run.startTime ? new Date(this.run.startTime).toLocaleString() : (this.run.createdDate ? new Date(this.run.createdDate).toLocaleString() : 'N/A')}</span>
             </div>
             <div class="summary-item">
                 <span class="summary-label">Duration</span>
