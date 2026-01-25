@@ -167,6 +167,16 @@ export class PipelineRunsPanel {
         return '<span style="color: var(--vscode-descriptionForeground); font-size: 16px;">-</span>';
     }
 
+    private getStatusColor(result: string): string {
+        const resultLower = result.toLowerCase();
+        if (resultLower === 'succeeded') return '#107c10';
+        if (resultLower === 'failed') return '#d13438';
+        if (resultLower === 'partiallysucceeded') return '#ff8c00';
+        if (resultLower === 'canceled' || resultLower === 'cancelled') return '#605e5c';
+        if (resultLower === 'inprogress' || resultLower === 'notstarted' || resultLower === 'running') return '#0078d4';
+        return '#605e5c';
+    }
+
     private formatTimeAgo(date: Date | string | undefined): string {
         if (!date) {
             return '-';
@@ -470,7 +480,7 @@ export class PipelineRunsPanel {
 
         .stages {
             display: flex;
-            gap: 4px;
+            gap: 0;
             align-items: center;
         }
 
@@ -478,6 +488,12 @@ export class PipelineRunsPanel {
             display: inline-flex;
             align-items: center;
             justify-content: center;
+        }
+
+        .stage-connector {
+            width: 6px;
+            height: 2px;
+            margin: 0;
         }
 
         .spinning {
@@ -677,7 +693,14 @@ export class PipelineRunsPanel {
                             <td style="padding-left: 40px;">
                                 <div class="stages">
                                     ${stages.length > 0
-                                        ? stages.map(stage => `<div class="stage-icon" title="${this.escapeHtml(stage.name)}: ${this.escapeHtml(stage.result)}">${this.getStatusIcon(stage.result)}</div>`).join('')
+                                        ? stages.map((stage, idx) => {
+                                            const icon = `<div class="stage-icon" title="${this.escapeHtml(stage.name)}: ${this.escapeHtml(stage.result)}">${this.getStatusIcon(stage.result)}</div>`;
+                                            if (idx < stages.length - 1) {
+                                                const color = this.getStatusColor(stage.result);
+                                                return icon + `<div class="stage-connector" style="background-color: ${color};"></div>`;
+                                            }
+                                            return icon;
+                                        }).join('')
                                         : '<span style="color: var(--vscode-descriptionForeground);">-</span>'
                                     }
                                 </div>

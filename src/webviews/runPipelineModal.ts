@@ -100,13 +100,16 @@ export class RunPipelineModal {
 
     private async fetchBranches(): Promise<string[]> {
         try {
+            vscode.window.showInformationMessage(`Repository ID: ${this.pipeline.repository?.id || 'MISSING'}`);
             if (!this.pipeline.repository?.id) {
-                return ['main', 'master', 'develop'];
+                return ['main'];
             }
             const branches = await this.client.getBranches(this.pipeline.repository.id);
-            return branches.map(b => b.name.replace('refs/heads/', ''));
+            vscode.window.showInformationMessage(`Fetched ${branches.length} branches`);
+            return branches.map(b => b.name);
         } catch (error) {
-            return ['main', 'master', 'develop'];
+            vscode.window.showErrorMessage(`Branch fetch error: ${error}`);
+            return ['main'];
         }
     }
 
@@ -122,11 +125,6 @@ export class RunPipelineModal {
         try {
             const yaml = await this.client.getPipelineYaml(this.pipeline.id);
 
-            console.log('Fetching stages from YAML...');
-            console.log('YAML length:', yaml.length);
-            console.log('First 500 chars of YAML:', yaml.substring(0, 500));
-
-            // Extract stages with their dependencies
             const stages: Array<{ name: string; dependsOn?: string[] }> = [];
             const lines = yaml.split('\n');
 
@@ -137,18 +135,11 @@ export class RunPipelineModal {
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
 
-                // Check if we're entering the stages section
                 if (line.match(/^stages:\s*$/)) {
                     inStagesSection = true;
-                    console.log('Found stages: section at line', i);
                     continue;
                 }
 
-                // Only look for stage definitions if we're in the stages section
-                // OR if there's no explicit stages: keyword (single-stage pipelines might not have it)
-
-                // Match stage definition: - stage: StageName or -stage:StageName
-                // More flexible regex that handles various whitespace scenarios
                 const stageMatch = line.match(/^\s*-\s*stage:\s*(.+)$/i);
                 if (stageMatch) {
                     if (currentStage) {
@@ -159,43 +150,34 @@ export class RunPipelineModal {
                         name: stageName
                     };
                     inDependsOn = false;
-                    console.log('Found stage:', stageName, 'at line', i);
                     continue;
                 }
 
-                // Match dependsOn (single line): dependsOn: value or dependsOn:[value]
                 if (currentStage && line.match(/^\s*dependsOn:\s*(.+)$/)) {
                     const dependsMatch = line.match(/^\s*dependsOn:\s*(.+)$/);
                     if (dependsMatch) {
                         const depValue = dependsMatch[1].trim();
                         if (depValue.startsWith('[')) {
-                            // Array format: dependsOn: [stage1, stage2]
                             const deps = depValue
                                 .replace(/[\[\]]/g, '')
                                 .split(',')
                                 .map(d => d.trim().replace(/['"]/g, ''))
                                 .filter(d => d.length > 0);
                             currentStage.dependsOn = deps;
-                            console.log('Found dependsOn (array):', deps);
                         } else if (depValue.toLowerCase() !== 'null' && depValue !== '[]') {
-                            // Single value: dependsOn: stage1
                             currentStage.dependsOn = [depValue.replace(/['"]/g, '')];
-                            console.log('Found dependsOn (single):', depValue);
                         }
                         inDependsOn = false;
                     }
                     continue;
                 }
 
-                // Match dependsOn (multi-line array start)
                 if (currentStage && line.match(/^\s*dependsOn:\s*$/)) {
                     inDependsOn = true;
                     currentStage.dependsOn = [];
-                    console.log('Found dependsOn (multi-line) at line', i);
                     continue;
                 }
 
-                // Match array items under dependsOn
                 if (inDependsOn && line.match(/^\s*-\s*(.+)$/)) {
                     const itemMatch = line.match(/^\s*-\s*(.+)$/);
                     if (itemMatch && currentStage) {
@@ -204,28 +186,21 @@ export class RunPipelineModal {
                             currentStage.dependsOn = [];
                         }
                         currentStage.dependsOn.push(dep);
-                        console.log('Added dependsOn item:', dep);
                     }
                     continue;
                 }
 
-                // Check if we've left the dependsOn section
                 if (inDependsOn && line.match(/^\s*\w+:/)) {
                     inDependsOn = false;
                 }
             }
 
-            // Add the last stage if exists
             if (currentStage) {
                 stages.push(currentStage);
             }
 
-            console.log('Total stages found:', stages.length);
-            console.log('Stages:', stages);
-
             return stages;
         } catch (error) {
-            console.error('Error fetching stages:', error);
             return [];
         }
     }

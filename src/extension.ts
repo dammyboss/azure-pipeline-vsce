@@ -21,7 +21,6 @@ let serviceConnectionsProvider: ServiceConnectionsTreeProvider;
 let statusBarItem: vscode.StatusBarItem;
 
 export async function activate(context: vscode.ExtensionContext) {
-    console.log('Azure DevOps Pipelines extension is now active');
 
     // Initialize authentication provider
     authProvider = new AzureDevOpsAuthProvider(context);
@@ -194,6 +193,4 @@ async function updateStatusBar(): Promise<void> {
     }
 }
 
-export function deactivate() {
-    console.log('Azure DevOps Pipelines extension is now deactivated');
-}
+export function deactivate() {}

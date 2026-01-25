@@ -56,13 +56,13 @@ export class ConnectionStatusProvider implements vscode.TreeDataProvider<Connect
             // Not signed in - show sign-in action
             items.push(
                 new ConnectionStatusItem(
-                    'Not signed in',
-                    'Click to sign in',
+                    'Sign In',
+                    'Click here to authenticate',
                     {
                         command: 'azurePipelines.signIn',
                         title: 'Sign In'
                     },
-                    new vscode.ThemeIcon('account', new vscode.ThemeColor('notificationsWarningIcon.foreground'))
+                    new vscode.ThemeIcon('sign-in', new vscode.ThemeColor('charts.blue'))
                 )
             );
         } else {
@@ -91,7 +91,7 @@ export class ConnectionStatusProvider implements vscode.TreeDataProvider<Connect
                             command: 'azurePipelines.selectOrganization',
                             title: 'Change Organization'
                         },
-                        new vscode.ThemeIcon('organization')
+                        new vscode.ThemeIcon('organization', new vscode.ThemeColor('charts.purple'))
                     )
                 );
             } else {
@@ -118,7 +118,7 @@ export class ConnectionStatusProvider implements vscode.TreeDataProvider<Connect
                             command: 'azurePipelines.selectOrganization',
                             title: 'Change Project'
                         },
-                        new vscode.ThemeIcon('project')
+                        new vscode.ThemeIcon('project', new vscode.ThemeColor('charts.green'))
                     )
                 );
             }
@@ -142,7 +142,7 @@ export class ConnectionStatusProvider implements vscode.TreeDataProvider<Connect
                         command: 'azurePipelines.selectOrganization',
                         title: 'Change Organization/Project'
                     },
-                    new vscode.ThemeIcon('gear')
+                    new vscode.ThemeIcon('gear', new vscode.ThemeColor('charts.blue'))
                 )
             );
 
@@ -155,7 +155,7 @@ export class ConnectionStatusProvider implements vscode.TreeDataProvider<Connect
                         command: 'azurePipelines.signOut',
                         title: 'Sign Out'
                     },
-                    new vscode.ThemeIcon('sign-out')
+                    new vscode.ThemeIcon('sign-out', new vscode.ThemeColor('charts.red'))
                 )
             );
         }

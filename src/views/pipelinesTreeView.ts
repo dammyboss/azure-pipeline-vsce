@@ -107,10 +107,7 @@ export class PipelineTreeItem extends vscode.TreeItem {
         const statusStr = String(run.status || '').toLowerCase();
         const resultStr = String(run.result || '').toLowerCase();
 
-        // Debug log for in-progress detection
-        if (statusStr.includes('progress') || statusStr === 'notstarted') {
-            console.log(`Pipeline ${this.pipeline.name} is running: status="${statusStr}", result="${resultStr}"`);
-        }
+
 
         // Check if running
         if (statusStr === 'inprogress' || statusStr === 'notstarted') {
@@ -119,10 +116,7 @@ export class PipelineTreeItem extends vscode.TreeItem {
 
         // Check result
         if (resultStr === 'succeeded') {
-            // Check if there are any warnings in the run
-            // Even succeeded runs can have warnings -> show orange
             if (this.pipeline.hasWarnings) {
-                console.log(`Pipeline ${this.pipeline.name} has warnings - showing orange icon`);
                 const iconPath = vscode.Uri.file(
                     path.join(__dirname, '..', '..', 'resources', 'icons', 'status-partial.svg')
                 );
@@ -142,8 +136,6 @@ export class PipelineTreeItem extends vscode.TreeItem {
         }
 
         if (resultStr === 'partiallysucceeded') {
-            // PartiallySucceeded means some tasks failed but run continued - ORANGE
-            console.log(`Pipeline ${this.pipeline.name} is PartiallySucceeded (${run.result}) - showing orange icon`);
             const iconPath = vscode.Uri.file(
                 path.join(__dirname, '..', '..', 'resources', 'icons', 'status-partial.svg')
             );
@@ -207,20 +199,8 @@ export class PipelinesTreeProvider implements vscode.TreeDataProvider<PipelineTr
             const pipelinesWithStatus: PipelineWithStatus[] = await Promise.all(
                 this.pipelines.map(async (pipeline) => {
                     try {
-                        // Get the latest run for this pipeline
                         const runs = await this.client.getPipelineRuns(pipeline.id, 1);
-                        console.log(`Pipeline ${pipeline.name} (${pipeline.id}): Got ${runs?.length || 0} runs`);
                         const latestRun = runs && runs.length > 0 ? runs[0] : undefined;
-
-                        if (latestRun) {
-                            console.log(`Latest run for ${pipeline.name}:`, JSON.stringify(latestRun, null, 2));
-                        }
-
-                        // Debug log the run result - INCLUDING TYPE
-                        if (latestRun) {
-                            console.log(`Pipeline ${pipeline.name}: status=${latestRun.status} (type: ${typeof latestRun.status}), result=${latestRun.result} (type: ${typeof latestRun.result})`);
-                            console.log(`RunResult.Succeeded=${RunResult.Succeeded}, RunResult.PartiallySucceeded=${RunResult.PartiallySucceeded}`);
-                        }
 
                         // Check for warnings based on result type
                         let hasWarnings = false;
@@ -236,8 +216,6 @@ export class PipelinesTreeProvider implements vscode.TreeDataProvider<PipelineTr
                             hasWarnings
                         };
                     } catch (error) {
-                        // If we can't get runs for this pipeline, just return without status
-                        console.error(`Failed to get runs for pipeline ${pipeline.id}:`, error);
                         return {
                             ...pipeline,
                             latestRun: undefined,

@@ -94,29 +94,36 @@ export class PipelineCommands {
      */
     private async runPipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
         try {
-            // Extract pipeline from TreeItem if needed
             const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
 
-            // Validate pipeline ID
             if (!pipeline || !pipeline.id) {
                 vscode.window.showErrorMessage('Pipeline ID is missing. Please refresh the pipelines view and try again.');
                 return;
             }
 
-            // Get the default branch from the pipeline's repository
-            let sourceBranch: string | undefined;
-            if (pipeline.repository?.id) {
-                try {
-                    const repos = await this.client.getRepositories();
-                    const repo = repos.find(r => r.id === pipeline.repository?.id);
-                    sourceBranch = repo?.defaultBranch;
-                } catch (error) {
-                    console.log('Could not get default branch:', error);
-                }
-            }
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Loading pipeline details...',
+                    cancellable: false
+                },
+                async () => {
+                    const fullPipeline = await this.client.getPipeline(pipeline.id);
 
-            // Create a lightweight panel with just the modal form
-            await this.showRunPipelineModal(pipeline, sourceBranch);
+                    let sourceBranch: string | undefined;
+                    if (fullPipeline.repository?.id) {
+                        try {
+                            const repos = await this.client.getRepositories();
+                            const repo = repos.find(r => r.id === fullPipeline.repository?.id);
+                            sourceBranch = repo?.defaultBranch;
+                        } catch (error) {
+                            // Ignore error
+                        }
+                    }
+
+                    await this.showRunPipelineModal(fullPipeline, sourceBranch);
+                }
+            );
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to open run pipeline form: ${errorMessage}`);

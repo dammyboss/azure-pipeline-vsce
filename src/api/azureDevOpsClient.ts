@@ -85,7 +85,6 @@ export class AzureDevOpsClient {
 
             // Don't show notifications for 404s - they're often expected (no timeline, no logs, etc.)
             if (status === 404) {
-                console.log('Resource not found (404):', url);
                 return;
             }
 
@@ -95,7 +94,6 @@ export class AzureDevOpsClient {
                 url.includes('app.vssps.visualstudio.com') ||
                 url.includes('management.azure.com')
             )) {
-                console.log('Auto-discovery endpoint returned 401 (expected):', url);
                 return;
             }
 
@@ -131,14 +129,26 @@ export class AzureDevOpsClient {
     }
 
     /**
+     * Get current authenticated user profile
+     */
+    async getCurrentUserProfile(): Promise<{ displayName: string; emailAddress: string; id: string }> {
+        const response = await this.axiosInstance.get(
+            'https://app.vssps.visualstudio.com/_apis/profile/profiles/me',
+            { params: { 'api-version': '7.1' } }
+        );
+        return {
+            displayName: response.data.displayName || response.data.coreAttributes?.DisplayName?.value || 'Unknown',
+            emailAddress: response.data.emailAddress || response.data.coreAttributes?.EmailAddress?.value || response.data.coreAttributes?.PublicAlias?.value || 'unknown@example.com',
+            id: response.data.id
+        };
+    }
+
+    /**
      * Get all organizations for the authenticated user
      * Uses the profile and resource areas to discover accessible organizations
      */
     async getOrganizations(): Promise<Organization[]> {
         try {
-            console.log('[Azure DevOps] Discovering organizations...');
-
-            // Step 1: Get user profile to get the member ID
             const profileResponse = await this.axiosInstance.get(
                 'https://app.vssps.visualstudio.com/_apis/profile/profiles/me',
                 {
@@ -149,9 +159,7 @@ export class AzureDevOpsClient {
             );
 
             const memberId = profileResponse.data.id;
-            console.log('[Azure DevOps] Got member ID:', memberId);
 
-            // Step 2: Use the member ID to get all accounts/organizations
             const accountsResponse = await this.axiosInstance.get(
                 'https://app.vssps.visualstudio.com/_apis/accounts',
                 {
@@ -162,32 +170,19 @@ export class AzureDevOpsClient {
                 }
             );
 
-            console.log('[Azure DevOps] Accounts response:', accountsResponse.data);
-
             if (accountsResponse.data && accountsResponse.data.count > 0) {
                 const organizations = accountsResponse.data.value.map((account: any) => {
-                    // Clean up the accountUri from the API response
-                    // The API may return URLs with 'vssps.' subdomain which doesn't work for REST APIs
-                    // Examples:
-                    //   - https://vssps.dev.azure.com/org/ -> https://dev.azure.com/org
-                    //   - https://org.vssps.visualstudio.com/ -> https://org.visualstudio.com
                     let accountUri = account.accountUri || '';
 
                     if (accountUri) {
-                        // Remove 'vssps.' subdomain (REST APIs don't use this)
                         accountUri = accountUri.replace('vssps.dev.azure.com', 'dev.azure.com');
                         accountUri = accountUri.replace('.vssps.visualstudio.com', '.visualstudio.com');
-
-                        // Remove trailing slashes
                         accountUri = accountUri.replace(/\/+$/, '');
                     }
 
-                    // If accountUri is still empty/invalid, construct using modern format
                     if (!accountUri || !accountUri.startsWith('http')) {
                         accountUri = `https://dev.azure.com/${account.accountName}`;
                     }
-
-                    console.log(`[Azure DevOps] Organization: ${account.accountName} -> ${accountUri}`);
 
                     return {
                         accountId: account.accountId,
@@ -196,16 +191,12 @@ export class AzureDevOpsClient {
                     };
                 });
 
-                console.log('[Azure DevOps] Found organizations:', organizations);
                 return organizations;
             }
 
-            // If no organizations found, throw an error
             throw new Error('No Azure DevOps organizations found for your account.');
 
         } catch (error: any) {
-            console.error('[Azure DevOps] Error discovering organizations:', error.message);
-            console.error('[Azure DevOps] Error details:', error.response?.data);
             throw new Error(`Unable to discover organizations: ${error.message}`);
         }
     }
@@ -214,27 +205,17 @@ export class AzureDevOpsClient {
      * Get all projects in an organization
      */
     async getProjects(organizationUrl: string): Promise<Project[]> {
-        console.log('[Azure DevOps] getProjects called with organizationUrl:', organizationUrl);
-
-        // Validate and clean the URL
         if (!organizationUrl || typeof organizationUrl !== 'string') {
             throw new Error(`Invalid organization URL: ${organizationUrl}`);
         }
 
-        // Remove trailing slashes
         let cleanUrl = organizationUrl.trim().replace(/\/+$/, '');
 
-        // Ensure we're using dev.azure.com format
-        // The accountUri from the API might be in various formats
         if (!cleanUrl.includes('dev.azure.com') && !cleanUrl.includes('visualstudio.com')) {
-            // If it's just a name, construct the full URL
             cleanUrl = `https://dev.azure.com/${cleanUrl}`;
         }
 
-        console.log('[Azure DevOps] Cleaned URL:', cleanUrl);
-
         const projectsUrl = `${cleanUrl}/_apis/projects`;
-        console.log('[Azure DevOps] Projects API URL:', projectsUrl);
 
         try {
             const response = await this.axiosInstance.get(
@@ -242,17 +223,8 @@ export class AzureDevOpsClient {
                 { params: { 'api-version': '7.1' } }
             );
 
-            console.log('[Azure DevOps] Projects response status:', response.status);
-            console.log('[Azure DevOps] Projects count:', response.data?.count);
-
             return response.data.value || [];
         } catch (error: any) {
-            console.error('[Azure DevOps] Failed to get projects from:', projectsUrl);
-            console.error('[Azure DevOps] Error message:', error.message);
-            console.error('[Azure DevOps] Error response status:', error.response?.status);
-            console.error('[Azure DevOps] Error response data:', error.response?.data);
-
-            // Provide a more helpful error message
             if (error.response?.status === 401) {
                 throw new Error(`Authentication failed. Your access token may have expired.`);
             } else if (error.response?.status === 404) {
@@ -370,14 +342,11 @@ export class AzureDevOpsClient {
      * Get all runs for a pipeline
      */
     async getPipelineRuns(pipelineId?: number, top: number = 50): Promise<PipelineRun[]> {
-        // Use the Build API instead of Pipelines API for more complete data
-        // (includes requestedBy, requestedFor, repository, sourceBranch, etc.)
         const params: any = {
             'api-version': '7.1',
             '$top': top
         };
 
-        // If pipelineId is provided, filter by definition ID
         if (pipelineId) {
             params.definitions = pipelineId;
         }
@@ -387,7 +356,6 @@ export class AzureDevOpsClient {
             { params }
         );
 
-        console.log('getPipelineRuns response:', JSON.stringify(response.data, null, 2));
         return response.data.value || [];
     }
 
@@ -395,11 +363,7 @@ export class AzureDevOpsClient {
      * Get a specific run
      */
     async getRun(runId: number): Promise<PipelineRun> {
-        // Try to get the build from the list API first (returns more complete data)
         try {
-            const listUrl = `${this.organizationUrl}/${this.projectName}/_apis/build/builds?buildIds=${runId}&api-version=7.1`;
-            console.log('Calling list API:', listUrl);
-
             const listResponse = await this.axiosInstance.get(
                 `${this.organizationUrl}/${this.projectName}/_apis/build/builds`,
                 {
@@ -413,43 +377,21 @@ export class AzureDevOpsClient {
 
             if (listResponse.data.value && listResponse.data.value.length > 0) {
                 const build = listResponse.data.value[0];
-                console.log('getRun from list API - Checking specific fields:');
-                console.log('  repository:', build.repository);
-                console.log('  definition:', build.definition);
-                console.log('  sourceBranch:', build.sourceBranch);
-                console.log('  sourceVersion:', build.sourceVersion);
-                console.log('  requestedBy:', build.requestedBy);
-                console.log('  requestedFor:', build.requestedFor);
-                console.log('  Full build object keys:', Object.keys(build));
-
-                // Map state to status for consistency
                 if (build.state && !build.status) {
                     build.status = build.state;
                 }
                 return build;
             }
         } catch (error) {
-            console.warn('Failed to get run from list API, falling back to direct API:', error);
+            // Fallback to direct API
         }
 
-        // Fallback to direct API
         const response = await this.axiosInstance.get(
             `${this.organizationUrl}/${this.projectName}/_apis/build/builds/${runId}`,
             { params: { 'api-version': '7.1' } }
         );
 
         const build = response.data;
-        console.log('getRun fallback - Checking specific fields:');
-        console.log('  repository:', build.repository);
-        console.log('  definition:', build.definition);
-        console.log('  sourceBranch:', build.sourceBranch);
-        console.log('  sourceVersion:', build.sourceVersion);
-        console.log('  sourceGetVersion:', build.sourceGetVersion);
-        console.log('  requestedBy:', build.requestedBy);
-        console.log('  requestedFor:', build.requestedFor);
-        console.log('  Full build object keys:', Object.keys(build));
-
-        // Map state to status if needed
         if (build.state && !build.status) {
             build.status = build.state;
         }
@@ -524,8 +466,7 @@ export class AzureDevOpsClient {
             );
             return response.data.comment || '';
         } catch (error: any) {
-            console.error(`Failed to fetch commit message for ${commitId}:`, error.message);
-            return ''; // Return empty string if commit not found
+            return '';
         }
     }
 
@@ -607,7 +548,6 @@ export class AzureDevOpsClient {
             );
             return response.data.value || [];
         } catch (error: any) {
-            console.error('Failed to get test runs:', error);
             return [];
         }
     }
@@ -647,7 +587,7 @@ export class AzureDevOpsClient {
                     );
                     return fileResponse.data;
                 } catch (fileError) {
-                    console.warn('Could not fetch YAML file:', fileError);
+                    // Could not fetch YAML file
                 }
             }
 
@@ -668,15 +608,11 @@ export class AzureDevOpsClient {
                 `${this.organizationUrl}/${this.projectName}/_apis/build/builds/${runId}/artifacts`,
                 { params: { 'api-version': '7.1-preview.1' } }
             );
-            console.log(`getArtifacts for run ${runId}:`, JSON.stringify(response.data, null, 2));
             return response.data.value || [];
         } catch (error: any) {
-            // 404 means no artifacts exist for this build, which is normal
             if (error.response?.status === 404) {
-                console.log(`getArtifacts for run ${runId}: 404 - No artifacts found`);
                 return [];
             }
-            console.error(`getArtifacts for run ${runId} error:`, error);
             throw error;
         }
     }
@@ -887,8 +823,8 @@ export class AzureDevOpsClient {
             `${this.organizationUrl}/${this.projectName}/_apis/git/repositories/${repositoryId}/refs`,
             {
                 params: {
-                    'api-version': '7.1-preview.1',
-                    filter: 'heads/'
+                    'api-version': '7.1',
+                    'filter': 'heads/'
                 }
             }
         );

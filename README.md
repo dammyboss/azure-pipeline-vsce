@@ -1,99 +1,107 @@
-# Azure DevOps Pipelines for VSCode
+# Azure DevOps Pipelines for VS Code
 
-Manage your Azure DevOps Pipelines directly from Visual Studio Code. View, run, monitor, and control your CI/CD pipelines without leaving your editor.
+[![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension-007ACC?style=flat&logo=visual-studio-code)](https://marketplace.visualstudio.com/)
+[![TypeScript](https://img.shields.io/badge/Built%20with-TypeScript-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+[![GitHub](https://img.shields.io/badge/GitHub-dammyboss-181717?style=flat&logo=github)](https://github.com/dammyboss)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Damilola_Onadeinde-0077B5?style=flat&logo=linkedin)](https://linkedin.com/in/damilola-onadeinde)
+[![YouTube](https://img.shields.io/badge/YouTube-DevOps_with_Dami-FF0000?style=flat&logo=youtube)](https://youtube.com/@devopswithdami)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support%20My%20Work-orange?style=flat&logo=buymeacoffee)](https://buymeacoffee.com/devopswithdami)
+
+Manage your Azure DevOps Pipelines and Service Connections directly from Visual Studio Code. View, run, monitor, and control your CI/CD pipelines without leaving your editor.
 
 ## Features
 
-### Authentication
+### Secure Authentication
 - OAuth 2.0 authentication using Microsoft accounts
 - No Personal Access Token (PAT) required
-- Secure token management using VSCode's SecretStorage API
 - Automatic token refresh
 
 ### Pipeline Management
 - View all pipelines in your organization/project
 - Run pipelines with branch selection
-- View pipeline definitions
+- Create, rename, and delete pipelines
 - Group pipelines by folder
-- Quick access to pipeline settings
+- Real-time pipeline status updates
 
 ### Pipeline Runs
-- View recent pipeline runs
-- Real-time status updates
-- Filter runs by pipeline, branch, or status
-- Auto-refresh every 30 seconds
-- Color-coded status indicators:
-  - Success (green)
-  - Failed (red)
-  - Running (blue, animated)
-  - Canceled (gray)
+- View recent pipeline runs with detailed information
+- Real-time status updates (auto-refresh every 30 seconds)
+- Filter runs by state, branch, user, or repository
+- Color-coded status indicators with stage visualization
+- View run logs and download artifacts
+- Cancel running pipelines or retry failed runs
 
-### Run Operations
-- Run pipelines with custom branch selection
-- Cancel running pipelines
-- Retry failed runs
-- View detailed run information
-- Download run logs
-- Download artifacts
-- Open runs in browser
+### Service Connections
+- View and manage Azure service connections
+- Edit connection details and settings
+- View usage history for each connection
+- Access Workload Identity federation details
 
-### Status Bar Integration
-- Shows current organization and project
-- Quick access to configuration
-- Click to change organization/project
+### Developer Experience
+- Intuitive tree view interface
+- Status bar integration showing current org/project
+- Quick access to all pipeline operations
+- Detailed run information in editor panels
 
 ## Getting Started
 
 ### Installation
 
-1. Clone this repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Compile the extension:
-   ```bash
-   npm run compile
-   ```
-
-4. Press `F5` to open a new VSCode window with the extension loaded
-
-### First Time Setup
-
-1. Click the Azure Pipelines icon in the Activity Bar
-2. Click "Sign In" when prompted
-3. Authenticate with your Microsoft account
+1. Install the extension from the VS Code Marketplace
+2. Click the Azure Pipelines icon in the Activity Bar
+3. Click "Sign In" to authenticate with your Microsoft account
 4. Select your Azure DevOps organization
 5. Select your project
 6. Start managing your pipelines!
 
 ## Usage
 
-### Viewing Pipelines
+### Authentication
 
-- Open the Azure Pipelines view from the Activity Bar
-- Browse all pipelines in your project
+1. Open the Azure Pipelines view from the Activity Bar
+2. Click "Sign In" in the Connection section
+3. Authenticate with your Microsoft account in the browser
+4. Return to VS Code - you're now connected!
+
+### Managing Pipelines
+
+**View Pipelines:**
+- Browse all pipelines in the Pipelines view
 - Click on a pipeline to view its recent runs
 
-### Running a Pipeline
-
-- Right-click on a pipeline in the Pipelines view
+**Run a Pipeline:**
+- Right-click on a pipeline
 - Select "Run Pipeline"
-- Choose a branch to run (if applicable)
-- The pipeline will start and appear in the Recent Runs view
+- Choose a branch (if applicable)
+- The pipeline will start immediately
 
-### Viewing Run Details
-
+**View Run Details:**
 - Click on any run in the Recent Runs view
-- View run logs by right-clicking and selecting "View Run Logs"
-- Download artifacts from completed runs
-- Cancel running pipelines
-- Retry failed runs
+- See detailed information including stages, duration, and status
+- Filter runs by state, branch, user, or repository
 
-### Managing Configuration
+**Pipeline Operations:**
+- Right-click on a pipeline for options:
+  - Run Pipeline
+  - Rename Pipeline
+  - Delete Pipeline
+  - Open in Browser
 
-- Click the status bar item showing your org/project
+### Managing Service Connections
+
+**View Connections:**
+- Browse all service connections in the Service Connections view
+- Click on a connection to view details
+
+**Connection Details:**
+- View connection type and authentication method
+- See usage history
+- Access Workload Identity federation details
+- Edit connection settings
+
+### Changing Organization/Project
+
+- Click the status bar item (bottom left) showing your org/project
 - Or use Command Palette: "Azure Pipelines: Select Organization/Project"
 - Choose a different organization or project
 
@@ -107,112 +115,65 @@ Access these commands from the Command Palette (`Cmd+Shift+P` or `Ctrl+Shift+P`)
 - `Azure Pipelines: Refresh Pipelines` - Refresh the pipelines list
 - `Azure Pipelines: Refresh Runs` - Refresh the runs list
 
-## Configuration
-
-Configure the extension in VSCode Settings:
-
-- `azurePipelines.autoRefreshInterval` - Auto-refresh interval in seconds (default: 30)
-- `azurePipelines.maxRunsToShow` - Maximum number of recent runs to display (default: 50)
-- `azurePipelines.showNotifications` - Show notifications for pipeline events (default: true)
-
-## Development
-
-### Project Structure
-
-```
-├── src/
-│   ├── authentication/
-│   │   └── authProvider.ts         # OAuth authentication
-│   ├── api/
-│   │   └── azureDevOpsClient.ts    # API client wrapper
-│   ├── models/
-│   │   └── types.ts                # TypeScript interfaces
-│   ├── views/
-│   │   ├── pipelinesTreeView.ts    # Pipelines tree view
-│   │   └── runsTreeView.ts         # Runs tree view
-│   ├── commands/
-│   │   └── pipelineCommands.ts     # Command handlers
-│   ├── utils/
-│   │   └── configManager.ts        # Configuration management
-│   └── extension.ts                # Extension entry point
-├── package.json                     # Extension manifest
-└── tsconfig.json                    # TypeScript configuration
-```
-
-### Building
-
-```bash
-# Compile TypeScript
-npm run compile
-
-# Watch mode for development
-npm run watch
-
-# Lint code
-npm run lint
-
-# Package extension
-npm run package
-```
-
-### Debugging
-
-1. Open the project in VSCode
-2. Press `F5` to start debugging
-3. A new Extension Development Host window will open
-4. Set breakpoints in your TypeScript files
-5. The extension will reload on file changes
-
-## API Coverage
-
-This extension uses the Azure DevOps REST API v7.0 to interact with:
-
-- **Core Services** - Organizations, projects
-- **Build API** - Pipelines, runs, artifacts
-- **Distributed Task API** - Environments, agent pools
-- **Git API** - Repositories, branches
-- **Service Endpoint API** - Service connections
-
-## Roadmap
-
-Future features planned:
-
-- WebView for detailed run visualization
-- YAML editor with IntelliSense
-- Pipeline templates management
-- Variable and variable group management
-- Approval/gate management
-- Environment management
-- Service connection management
-- Agent pool management
-- Pipeline analytics and insights
-- Multi-stage pipeline visualization
-- Bulk operations
-
 ## Requirements
 
 - Visual Studio Code 1.85.0 or higher
 - Azure DevOps account with appropriate permissions
 - Microsoft account for authentication
 
-## Known Issues
+## Features in Detail
 
-- None at this time
+### Pipeline Runs View
+- **Status Indicators**: Color-coded icons (green for success, red for failed, blue for running)
+- **Stage Visualization**: See all stages with connected status indicators
+- **Filtering**: Filter by state, branch, user, or repository
+- **Auto-refresh**: Runs update automatically every 30 seconds
+- **Quick Actions**: Cancel, retry, view logs, download artifacts
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-MIT License - see LICENSE file for details
+### Service Connections
+- **Connection Management**: View and edit service connection details
+- **Usage Tracking**: See which pipelines use each connection
+- **Federation Details**: Access issuer and subject identifier for Workload Identity
+- **Creator Information**: See who created each connection
 
 ## Support
 
-For issues and feature requests, please use the GitHub issue tracker.
+For issues, feature requests, or contributions, please visit the [GitHub repository](https://github.com/dammyboss/azure-pipeline-vsce).
 
-## Acknowledgments
+## Contributing
 
-- Built using the official Azure DevOps REST API
-- Uses VSCode's built-in Microsoft authentication provider
-- Icons from VSCode's Codicon library
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## About the Developer
+
+**Damilola Onadeinde**  
+*DevOps/AI Engineer | Cloud Infrastructure Specialist | Open Source Contributor*
+
+Connect with me:
+
+<a href="https://github.com/dammyboss"><img src="https://img.icons8.com/fluent/48/000000/github.png" alt="GitHub" width="40"/></a>
+<a href="https://linkedin.com/in/damilola-onadeinde"><img src="https://img.icons8.com/fluent/48/000000/linkedin.png" alt="LinkedIn" width="40"/></a>
+<a href="https://devopswithdami.com"><img src="https://img.icons8.com/fluent/48/000000/domain.png" alt="Portfolio" width="40"/></a>
+<a href="https://youtube.com/@devopswithdami"><img src="https://img.icons8.com/fluent/48/000000/youtube-play.png" alt="YouTube" width="40"/></a>
+
+## Support the Developer
+
+If you find this project helpful and would like to support my work, consider buying me a coffee!
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support%20My%20Work-orange?style=for-the-badge&logo=buymeacoffee)](https://buymeacoffee.com/devopswithdami)
+
+Your support helps me continue creating open-source tools and improving this project!
+
+## License
+
+MIT License
+
+---
+
+**Enjoy managing your Azure DevOps Pipelines from VS Code!**

@@ -6,6 +6,7 @@ export class ServiceConnectionPanel {
     private static currentPanel: ServiceConnectionPanel | undefined;
     private readonly panel: vscode.WebviewPanel;
     private disposables: vscode.Disposable[] = [];
+    private userProfile: { displayName: string; emailAddress: string; id: string } | null = null;
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -20,7 +21,7 @@ export class ServiceConnectionPanel {
             null,
             this.disposables
         );
-        this.update();
+        this.loadUserProfile();
     }
 
     public static show(connection: ServiceEndpoint, client: AzureDevOpsClient, onUpdate: () => void) {
@@ -44,6 +45,15 @@ export class ServiceConnectionPanel {
         );
 
         ServiceConnectionPanel.currentPanel = new ServiceConnectionPanel(panel, connection, client, onUpdate);
+    }
+
+    private async loadUserProfile() {
+        try {
+            this.userProfile = await this.client.getCurrentUserProfile();
+        } catch (error) {
+            console.error('Failed to load user profile:', error);
+        }
+        this.update();
     }
 
     private async handleMessage(message: any) {
@@ -168,10 +178,10 @@ export class ServiceConnectionPanel {
         const conn = this.connection;
         const projects = conn.serviceEndpointProjectReferences?.map(ref => ref.projectReference?.name).join(', ') || 'None';
         
-        // Get creator initials (mock for now)
-        const creatorInitials = 'DB';
-        const creatorName = 'Damilola Onadeinde';
-        const creatorEmail = 'damilola@example.com';
+        // Get creator info from user profile
+        const creatorName = this.userProfile?.displayName || 'Loading...';
+        const creatorEmail = this.userProfile?.emailAddress || 'Loading...';
+        const creatorInitials = creatorName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2) || 'DB';
 
         return `<!DOCTYPE html>
 <html>
@@ -195,16 +205,6 @@ export class ServiceConnectionPanel {
             padding: 20px 24px 0;
             background-color: #1e1e1e;
             position: relative;
-        }
-        .back-button {
-            color: #3794ff;
-            font-size: 14px;
-            cursor: pointer;
-            margin-bottom: 12px;
-            display: inline-block;
-        }
-        .back-button:hover {
-            text-decoration: underline;
         }
         .title {
             font-size: 24px;
@@ -250,15 +250,23 @@ export class ServiceConnectionPanel {
         }
         .overview-grid {
             display: grid;
-            grid-template-columns: 1fr 300px;
-            gap: 20px;
+            grid-template-columns: 1fr 280px;
+            gap: 0;
             margin-bottom: 20px;
         }
         .card {
             background-color: #252526;
             border: 1px solid #3c3c3c;
-            border-radius: 2px;
+            border-radius: 0;
             padding: 20px;
+        }
+        .card:first-child {
+            border-radius: 2px 0 0 2px;
+            border-right: 0;
+        }
+        .card:last-child {
+            border-radius: 0 2px 2px 0;
+            border-left: 0;
         }
         .card-title {
             font-size: 16px;
@@ -299,29 +307,55 @@ export class ServiceConnectionPanel {
             text-decoration: underline;
         }
         .creator-section {
-            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            justify-content: center;
+        }
+        .creator-label {
+            font-size: 12px;
+            color: #ffffff;
+            text-transform: none;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+        .creator-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
         .avatar {
-            width: 80px;
-            height: 80px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             background-color: #107c10;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 12px;
-            font-size: 32px;
+            font-size: 14px;
             font-weight: 600;
             color: #ffffff;
+            flex-shrink: 0;
+        }
+        .creator-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
         }
         .creator-name {
             font-size: 14px;
             color: #ffffff;
-            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .creator-email {
             font-size: 13px;
             color: #8c8c8c;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .full-width-card {
             grid-column: 1 / -1;
@@ -346,11 +380,16 @@ export class ServiceConnectionPanel {
             cursor: pointer;
             color: #8c8c8c;
             margin-left: 12px;
-            font-size: 16px;
+            font-size: 14px;
             flex-shrink: 0;
         }
         .copy-icon:hover {
             color: #3794ff;
+        }
+        .copy-icon svg {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
         }
         .empty-state {
             text-align: center;
@@ -456,7 +495,6 @@ export class ServiceConnectionPanel {
 </head>
 <body>
     <div class="header">
-        <div class="back-button" onclick="goBack()">← Back to Service Connections</div>
         <div class="title">${conn.name}</div>
         <div class="subtitle">Service Connection ID: ${conn.id}</div>
         <button id="edit-button" class="edit-button" onclick="openEditMode()">Edit</button>
@@ -465,7 +503,6 @@ export class ServiceConnectionPanel {
     <div class="tabs">
         <div class="tab active" onclick="switchTab('overview')">Overview</div>
         <div class="tab" onclick="switchTab('usage')">Usage history</div>
-        <div class="tab" onclick="switchTab('approvals')">Approvals and checks</div>
     </div>
 
     <div class="content">
@@ -497,9 +534,14 @@ export class ServiceConnectionPanel {
                     </div>
 
                     <div class="card creator-section">
-                        <div class="avatar">${creatorInitials}</div>
-                        <div class="creator-name">${creatorName}</div>
-                        <div class="creator-email">${creatorEmail}</div>
+                        <div class="creator-label">Creator</div>
+                        <div class="creator-content">
+                            <div class="avatar">${creatorInitials}</div>
+                            <div class="creator-info">
+                                <div class="creator-name">${creatorName}</div>
+                                <div class="creator-email">${creatorEmail}</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -509,15 +551,15 @@ export class ServiceConnectionPanel {
                     <div class="field">
                         <div class="field-label">Issuer</div>
                         <div class="copy-field">
-                            <div class="copy-text">${conn.url}</div>
-                            <div class="copy-icon" onclick="copyToClipboard(event, '${conn.url}')">📋</div>
+                            <div class="copy-text">${conn.data?.environment ? `https://login.microsoftonline.com/${conn.data.tenantid || conn.authorization?.parameters?.tenantid}/v2.0` : conn.url}</div>
+                            <div class="copy-icon" onclick="copyToClipboard(event, '${conn.data?.environment ? `https://login.microsoftonline.com/${conn.data.tenantid || conn.authorization?.parameters?.tenantid}/v2.0` : conn.url}')"><svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 4v1H3V3h8v2h-1V4H4zm8 4V7h1v8H5v-2h1v1h6V8z"/><path d="M11 1H2v10h9V1zM3 10V2h7v8H3z"/></svg></div>
                         </div>
                     </div>
                     <div class="field">
                         <div class="field-label">Subject identifier</div>
                         <div class="copy-field">
-                            <div class="copy-text">sc://${conn.id}</div>
-                            <div class="copy-icon" onclick="copyToClipboard(event, 'sc://${conn.id}')">📋</div>
+                            <div class="copy-text">sc://${conn.data?.organizationName || 'organization'}/${conn.data?.projectId || conn.serviceEndpointProjectReferences?.[0]?.projectReference?.id || 'project'}/${conn.id}</div>
+                            <div class="copy-icon" onclick="copyToClipboard(event, 'sc://${conn.data?.organizationName || 'organization'}/${conn.data?.projectId || conn.serviceEndpointProjectReferences?.[0]?.projectReference?.id || 'project'}/${conn.id}')"><svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 4v1H3V3h8v2h-1V4H4zm8 4V7h1v8H5v-2h1v1h6V8z"/><path d="M11 1H2v10h9V1zM3 10V2h7v8H3z"/></svg></div>
                         </div>
                     </div>
                 </div>
@@ -556,13 +598,6 @@ export class ServiceConnectionPanel {
             <div id="usage-loading" class="empty-state">Loading usage history...</div>
             <div id="usage-empty" class="empty-state" style="display:none;">No pipeline has used this service connection yet.</div>
             <div id="usage-table" style="display:none;"></div>
-        </div>
-
-        <!-- Approvals and Checks Tab -->
-        <div id="approvals" class="tab-content">
-            <div class="empty-state">
-                No approvals or checks are configured for this service connection.
-            </div>
         </div>
     </div>
 
@@ -653,21 +688,14 @@ export class ServiceConnectionPanel {
             table.innerHTML = tableHTML;
         }
 
-        function openBuildRun(buildId) {
-            vscode.postMessage({ command: 'openBuildRun', buildId: buildId });
-        }
-
         function copyToClipboard(event, text) {
             navigator.clipboard.writeText(text).then(() => {
-                event.target.textContent = '✓';
+                const icon = event.currentTarget;
+                icon.innerHTML = '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14 3L6 11l-4-4 1-1 3 3 7-7z"/></svg>';
                 setTimeout(() => {
-                    event.target.textContent = '📋';
+                    icon.innerHTML = '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 4v1H3V3h8v2h-1V4H4zm8 4V7h1v8H5v-2h1v1h6V8z"/><path d="M11 1H2v10h9V1zM3 10V2h7v8H3z"/></svg>';
                 }, 1000);
             });
-        }
-
-        function goBack() {
-            vscode.postMessage({ command: 'close' });
         }
 
         function openEditMode() {
