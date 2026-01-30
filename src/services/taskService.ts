@@ -84,25 +84,48 @@ export class TaskService {
             // Skip if already loaded
             if (this.iconCache.has(task.id)) {
                 task.iconUrl = this.iconCache.get(task.id);
-                return;
+                return { taskName: task.name, status: 'cached' };
             }
 
             // Skip if no icon URL
             if (!task.iconUrl) {
-                return;
+                return { taskName: task.name, status: 'no-url' };
             }
 
             // Only convert if it's not already a data URL
             if (!task.iconUrl.startsWith('data:')) {
+                const originalUrl = task.iconUrl;
                 const dataUrl = await this.client.getTaskIconAsDataUrl(task.iconUrl);
                 if (dataUrl) {
                     task.iconUrl = dataUrl;
                     this.iconCache.set(task.id, dataUrl);
+                    return { taskName: task.name, status: 'success' };
+                } else {
+                    console.warn(`Failed to load icon for task ${task.name} from ${originalUrl}`);
+                    return { taskName: task.name, status: 'failed', url: originalUrl };
                 }
             }
+
+            return { taskName: task.name, status: 'already-data-url' };
         });
 
-        await Promise.all(loadPromises);
+        const results = await Promise.all(loadPromises);
+
+        // Log summary
+        const summary = results.reduce((acc, result) => {
+            if (result) {
+                acc[result.status] = (acc[result.status] || 0) + 1;
+            }
+            return acc;
+        }, {} as Record<string, number>);
+
+        console.log(`Icon loading summary for ${tasks.length} tasks:`, summary);
+
+        // Log failed icons for debugging
+        const failed = results.filter(r => r && r.status === 'failed');
+        if (failed.length > 0) {
+            console.log(`Failed to load ${failed.length} icons:`, failed.map(f => `${f.taskName}`).join(', '));
+        }
     }
 
     /**

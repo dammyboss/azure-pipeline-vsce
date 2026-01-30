@@ -320,7 +320,7 @@ export class TaskAssistantPanel {
     /**
      * Simplify task objects for webview (reduce data size)
      */
-    private simplifyTasks(tasks: TaskDefinition[]): any[] {
+    private simplifyTasks(tasks: TaskDefinition[], includeIcons: boolean = true): any[] {
         return tasks.map(task => ({
             id: task.id,
             name: task.name,
@@ -331,7 +331,8 @@ export class TaskAssistantPanel {
             version: task.version,
             deprecated: task.deprecated,
             preview: task.preview,
-            iconUrl: task.iconUrl
+            // Only include icon URL if it's a data URL (to avoid failed loads in webview)
+            iconUrl: includeIcons && task.iconUrl?.startsWith('data:') ? task.iconUrl : undefined
         }));
     }
 
