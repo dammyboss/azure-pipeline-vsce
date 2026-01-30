@@ -1152,4 +1152,58 @@ export class AzureDevOpsClient {
             defaultBranch: defaultBranch
         };
     }
+
+    /**
+     * Validate pipeline YAML without running the pipeline
+     * Uses the preview API to parse and validate the YAML
+     */
+    async validatePipelineYaml(
+        pipelineId: number,
+        yamlContent: string,
+        branch?: string
+    ): Promise<{ valid: boolean; finalYaml?: string; error?: string }> {
+        try {
+            const requestBody: any = {
+                previewRun: true,
+                yamlOverride: yamlContent
+            };
+
+            // Add branch reference if provided
+            if (branch) {
+                requestBody.resources = {
+                    repositories: {
+                        self: {
+                            refName: `refs/heads/${branch}`
+                        }
+                    }
+                };
+            }
+
+            const response = await this.axiosInstance.post(
+                `${this.organizationUrl}/${this.projectName}/_apis/pipelines/${pipelineId}/preview`,
+                requestBody,
+                { params: { 'api-version': '7.1' } }
+            );
+
+            return {
+                valid: true,
+                finalYaml: response.data.finalYaml
+            };
+        } catch (error: any) {
+            // Extract error message from response
+            let errorMessage = 'Validation failed';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.data?.typeKey) {
+                errorMessage = `${error.response.data.typeKey}: ${error.response.data.message || 'Unknown error'}`;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            return {
+                valid: false,
+                error: errorMessage
+            };
+        }
+    }
 }
