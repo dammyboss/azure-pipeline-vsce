@@ -48,6 +48,10 @@ export class PipelineEditorPanel {
                     case 'validateForModal':
                         await this.validateForModal(message.content, message.branch);
                         break;
+                    case 'validateWithoutSave':
+                        // Validate current editor content without saving
+                        this._panel.webview.postMessage({ command: 'triggerValidate' });
+                        break;
                     case 'close':
                         this._panel.dispose();
                         break;
@@ -817,21 +821,24 @@ export class PipelineEditorPanel {
         }
 
         .action-btn.run {
-            background: var(--vscode-button-background, #0e639c);
-            color: var(--vscode-button-foreground, white);
+            background: #0078d4;
+            color: white;
+            border-radius: 4px;
         }
 
         .action-btn.run:hover {
-            background: var(--vscode-button-hoverBackground, #1177bb);
+            background: #106ebe;
         }
 
         .action-btn.validate-save {
-            background: #388a34;
+            background: #0078d4;
             color: white;
+            border-radius: 4px 0 0 4px;
+            padding-right: 16px;
         }
 
         .action-btn.validate-save:hover {
-            background: #2e7a2a;
+            background: #106ebe;
         }
 
         .action-btn:disabled {
@@ -839,28 +846,90 @@ export class PipelineEditorPanel {
             cursor: not-allowed;
         }
 
+        /* Action Button Group */
+        .action-btn-group {
+            display: flex;
+            position: relative;
+        }
+
+        .action-dropdown-btn {
+            background: #0078d4;
+            color: white;
+            border: none;
+            border-left: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 0 4px 4px 0;
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s ease;
+        }
+
+        .action-dropdown-btn:hover {
+            background: #106ebe;
+        }
+
+        .action-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            min-width: 220px;
+            background: var(--vscode-menu-background, #252526);
+            border: 1px solid var(--vscode-menu-border, #454545);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .action-dropdown-menu.show {
+            display: block;
+        }
+
+        .action-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            background: transparent;
+            border: none;
+            color: var(--vscode-menu-foreground, #cccccc);
+            font-size: 13px;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            transition: background 0.15s ease;
+        }
+
+        .action-dropdown-item:hover {
+            background: var(--vscode-menu-selectionBackground, #094771);
+        }
+
         /* Variables Button */
         .variables-btn {
             display: flex;
             align-items: center;
             gap: 6px;
-            padding: 8px 16px;
+            padding: 8px 20px;
             border: none;
             border-radius: 4px;
-            background: var(--vscode-button-secondaryBackground, #3a3d41);
-            color: var(--vscode-button-secondaryForeground, #cccccc);
+            background: #3c3c3c;
+            color: #ffffff;
             font-size: 13px;
-            font-weight: 500;
+            font-weight: 400;
             cursor: pointer;
-            transition: all 0.15s ease;
+            transition: background 0.15s ease;
         }
 
         .variables-btn:hover {
-            background: var(--vscode-button-secondaryHoverBackground, #45494e);
+            background: #505050;
         }
 
         .variables-btn:active {
-            transform: scale(0.98);
+            background: #2d2d2d;
         }
 
         /* More Menu (3-dot menu) */
@@ -1797,17 +1866,19 @@ export class PipelineEditorPanel {
         }
         .variables-modal .variables-panel {
             position: absolute;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            width: 800px;
-            max-width: 90vw;
+            top: 10%;
+            right: 5%;
+            bottom: 10%;
+            width: 700px;
+            max-width: 85vw;
+            max-height: 80vh;
             background: var(--vscode-editor-background);
-            border-left: 1px solid var(--vscode-panel-border);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
             display: flex;
             flex-direction: column;
             animation: slideInRight 0.3s ease-out;
-            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
         }
         .variables-modal .modal-header {
             padding: 24px 32px;
@@ -2081,12 +2152,24 @@ export class PipelineEditorPanel {
                 </svg>
                 <span>Variables</span>
             </button>
-            <button id="actionBtn" class="action-btn run" title="Run pipeline">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M3.5 2v12l10-6-10-6z"/>
-                </svg>
-                <span id="actionBtnText">Run</span>
-            </button>
+            <div class="action-btn-group">
+                <button id="actionBtn" class="action-btn run" title="Run pipeline">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M3.5 2v12l10-6-10-6z"/>
+                    </svg>
+                    <span id="actionBtnText">Run</span>
+                </button>
+                <button id="actionDropdownBtn" class="action-dropdown-btn" title="More run options">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 011.06 0L8 8.94l2.72-2.72a.75.75 0 111.06 1.06l-3.25 3.25a.75.75 0 01-1.06 0L4.22 7.28a.75.75 0 010-1.06z"/>
+                    </svg>
+                </button>
+                <div class="action-dropdown-menu" id="actionDropdownMenu">
+                    <button class="action-dropdown-item" id="validateWithoutSaveMenuItem">
+                        <span>Validate without saving</span>
+                    </button>
+                </div>
+            </div>
             <div class="more-menu-container">
                 <button id="moreBtn" class="more-btn" title="More actions">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -2450,6 +2533,9 @@ export class PipelineEditorPanel {
         const editor = document.getElementById('editor');
         const actionBtn = document.getElementById('actionBtn');
         const actionBtnText = document.getElementById('actionBtnText');
+        const actionDropdownBtn = document.getElementById('actionDropdownBtn');
+        const actionDropdownMenu = document.getElementById('actionDropdownMenu');
+        const validateWithoutSaveMenuItem = document.getElementById('validateWithoutSaveMenuItem');
         const variablesBtn = document.getElementById('variablesBtn');
         const moreBtn = document.getElementById('moreBtn');
         const moreMenu = document.getElementById('moreMenu');
@@ -2504,15 +2590,18 @@ export class PipelineEditorPanel {
 
         function updateButtonState() {
             if (isModified) {
-                // Show "Validate and save" button
+                // Show "Validate and save" button with dropdown
                 actionBtn.className = 'action-btn validate-save';
                 actionBtn.title = 'Validate and save to Azure DevOps repository';
                 actionBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg><span id="actionBtnText">Validate and save</span>';
+                actionDropdownBtn.style.display = 'flex';
             } else {
-                // Show "Run" button
+                // Show "Run" button without dropdown
                 actionBtn.className = 'action-btn run';
                 actionBtn.title = 'Run pipeline';
                 actionBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 2v12l10-6-10-6z"/></svg><span id="actionBtnText">Run</span>';
+                actionDropdownBtn.style.display = 'none';
+                actionBtn.style.borderRadius = '4px'; // Full rounded corners when no dropdown
             }
         }
 
@@ -2978,11 +3067,26 @@ export class PipelineEditorPanel {
             if (!moreBtn.contains(e.target) && !moreMenu.contains(e.target)) {
                 moreMenu.classList.remove('show');
             }
+            if (!actionDropdownBtn.contains(e.target) && !actionDropdownMenu.contains(e.target)) {
+                actionDropdownMenu.classList.remove('show');
+            }
         });
 
         // Handle Variables button
         variablesBtn.addEventListener('click', () => {
             vscode.postMessage({ command: 'openVariablesModal' });
+        });
+
+        // Handle Action dropdown toggle
+        actionDropdownBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            actionDropdownMenu.classList.toggle('show');
+        });
+
+        // Handle validate without save
+        validateWithoutSaveMenuItem.addEventListener('click', () => {
+            vscode.postMessage({ command: 'validateWithoutSave' });
+            actionDropdownMenu.classList.remove('show');
         });
 
         // Handle More menu toggle
@@ -3214,6 +3318,14 @@ export class PipelineEditorPanel {
                         selectedBranchName.textContent = message.defaultBranch;
                     }
                     renderBranches(branches);
+                    break;
+                case 'triggerValidate':
+                    // Trigger validation of current content
+                    vscode.postMessage({
+                        command: 'validate',
+                        content: editor.value,
+                        branch: selectedBranch
+                    });
                     break;
                 case 'validationStarted':
                     isValidating = true;
