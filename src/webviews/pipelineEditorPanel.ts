@@ -1290,7 +1290,7 @@ export class PipelineEditorPanel {
             border-top-color: var(--vscode-descriptionForeground, #8b8b8b);
         }
 
-        /* Run Pipeline Modal */
+        /* Run Pipeline Modal Styles (scoped to avoid conflict with validate/save modal) */
         .run-pipeline-modal {
             display: none;
             position: fixed;
@@ -1298,238 +1298,250 @@ export class PipelineEditorPanel {
             left: 0;
             right: 0;
             bottom: 0;
-            z-index: 3000;
+            z-index: 2000;
         }
-
         .run-pipeline-modal.show {
             display: block;
         }
 
-        .run-modal-overlay {
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+            }
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .run-pipeline-modal .modal-overlay {
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
             background: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.2s ease-in;
         }
-
-        .run-modal-panel {
+        .run-pipeline-modal .modal-panel {
             position: absolute;
             top: 0;
             right: 0;
             bottom: 0;
-            width: 550px;
+            width: 600px;
             max-width: 90vw;
-            background: var(--vscode-sideBar-background, #252526);
-            border-left: 1px solid var(--vscode-panel-border, #454545);
+            background: var(--vscode-editor-background);
+            border-left: 1px solid var(--vscode-panel-border);
             display: flex;
             flex-direction: column;
             animation: slideInRight 0.3s ease-out;
             box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
         }
-
-        .run-modal-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--vscode-panel-border, #454545);
+        .run-pipeline-modal .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--vscode-panel-border);
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
+            background: var(--vscode-editor-inactiveSelectionBackground);
         }
-
-        .run-modal-title-section {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .run-modal-title {
-            font-size: 18px;
+        .run-pipeline-modal .modal-title {
+            font-size: 20px;
             font-weight: 600;
+            margin-bottom: 4px;
         }
-
-        .run-modal-subtitle {
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground, #8b8b8b);
+        .run-pipeline-modal .modal-subtitle {
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
         }
-
-        .run-modal-close {
+        .run-pipeline-modal .modal-close {
             background: none;
             border: none;
-            color: var(--vscode-foreground, #cccccc);
+            color: var(--vscode-foreground);
             cursor: pointer;
-            padding: 6px;
-            border-radius: 4px;
+            font-size: 24px;
+            padding: 0;
+            width: 32px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
+            border-radius: 4px;
+            opacity: 0.7;
+            transition: opacity 0.2s, background 0.2s;
         }
-
-        .run-modal-close:hover {
-            background: var(--vscode-toolbar-hoverBackground, #5a5d5e50);
+        .run-pipeline-modal .modal-close:hover {
+            opacity: 1;
+            background: var(--vscode-toolbar-hoverBackground);
         }
-
-        .run-modal-body {
+        .run-pipeline-modal .modal-content {
             flex: 1;
-            padding: 20px;
             overflow-y: auto;
+            padding: 20px 24px;
         }
-
-        .run-modal-section {
-            margin-bottom: 20px;
+        .run-pipeline-modal .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--vscode-panel-border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            background: var(--vscode-editor-background);
         }
-
-        .run-modal-section-label {
-            font-size: 12px;
+        .run-pipeline-modal .modal-section {
+            margin-bottom: 24px;
+        }
+        .run-pipeline-modal .modal-section-title {
+            font-size: 16px;
             font-weight: 600;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            margin-bottom: 12px;
         }
-
-        .run-modal-select,
-        .run-modal-input {
+        .run-pipeline-modal .modal-form-group {
+            margin-bottom: 16px;
+        }
+        .run-pipeline-modal .modal-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        .run-pipeline-modal .modal-label-description {
+            display: block;
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 2px;
+        }
+        .run-pipeline-modal .modal-input {
             width: 100%;
             padding: 8px 12px;
-            background: var(--vscode-input-background, #3c3c3c);
-            color: var(--vscode-input-foreground, #cccccc);
-            border: 1px solid var(--vscode-input-border, #454545);
+            background: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border);
             border-radius: 4px;
             font-size: 13px;
-            font-family: inherit;
+            font-family: var(--vscode-font-family);
         }
-
-        .run-modal-select:focus,
-        .run-modal-input:focus {
-            outline: none;
-            border-color: var(--vscode-focusBorder, #007acc);
+        .run-pipeline-modal .modal-input:focus {
+            outline: 1px solid var(--vscode-focusBorder);
         }
-
-        .run-modal-footer {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 10px;
-            padding: 16px 20px;
-            border-top: 1px solid var(--vscode-panel-border, #454545);
+        .run-pipeline-modal .modal-divider {
+            height: 1px;
+            background: var(--vscode-panel-border);
+            margin: 20px 0;
         }
-
-        .run-modal-expandable {
-            border: 1px solid var(--vscode-panel-border, #454545);
+        .run-pipeline-modal .modal-info-text {
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+            padding: 12px;
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 4px;
+        }
+        .run-pipeline-modal .modal-expandable-section {
+            border: 1px solid var(--vscode-panel-border);
             border-radius: 6px;
             margin-bottom: 12px;
-            overflow: hidden;
         }
-
-        .run-modal-expandable-header {
+        .run-pipeline-modal .modal-expandable-header {
             padding: 12px 16px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: var(--vscode-editor-inactiveSelectionBackground, #37373d);
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 6px;
         }
-
-        .run-modal-expandable-header:hover {
-            background: var(--vscode-list-hoverBackground, #2a2d2e);
+        .run-pipeline-modal .modal-expandable-header:hover {
+            background: var(--vscode-list-hoverBackground);
         }
-
-        .run-modal-expandable-title {
+        .run-pipeline-modal .modal-expandable-title {
             font-weight: 600;
             font-size: 14px;
         }
-
-        .run-modal-expandable-arrow {
+        .run-pipeline-modal .modal-expandable-arrow {
             font-size: 12px;
             transition: transform 0.2s;
         }
-
-        .run-modal-expandable.expanded .run-modal-expandable-arrow {
+        .run-pipeline-modal .modal-expandable-section.expanded .modal-expandable-arrow {
             transform: rotate(90deg);
         }
-
-        .run-modal-expandable-content {
+        .run-pipeline-modal .modal-expandable-content {
             display: none;
             padding: 16px;
-            background: var(--vscode-editor-background, #1e1e1e);
         }
-
-        .run-modal-expandable.expanded .run-modal-expandable-content {
+        .run-pipeline-modal .modal-expandable-section.expanded .modal-expandable-content {
             display: block;
         }
-
-        .run-modal-checkbox-group {
+        .run-pipeline-modal .modal-checkbox-group {
             display: flex;
             flex-direction: column;
             gap: 8px;
         }
-
-        .run-modal-checkbox-item {
+        .run-pipeline-modal .modal-checkbox-item {
             display: flex;
             align-items: center;
             gap: 8px;
         }
-
-        .run-modal-checkbox-item input[type="checkbox"] {
+        .run-pipeline-modal .modal-checkbox-item input[type="checkbox"] {
             width: 16px;
             height: 16px;
             cursor: pointer;
-            accent-color: var(--vscode-button-background, #0e639c);
+            accent-color: var(--vscode-button-background);
         }
-
-        .run-modal-checkbox-item label {
+        .run-pipeline-modal .modal-checkbox-item label {
             margin: 0;
             cursor: pointer;
+            font-weight: 400;
             font-size: 13px;
         }
-
-        .run-modal-variable-list {
+        .run-pipeline-modal .modal-variable-list {
             display: flex;
             flex-direction: column;
             gap: 12px;
         }
-
-        .run-modal-variable-item {
+        .run-pipeline-modal .modal-variable-item {
             display: grid;
             grid-template-columns: 150px 1fr;
             gap: 12px;
             align-items: center;
         }
-
-        .run-modal-variable-name {
+        .run-pipeline-modal .modal-variable-name {
             font-size: 13px;
             font-weight: 500;
         }
-
-        .run-modal-divider {
-            height: 1px;
-            background: var(--vscode-panel-border, #454545);
-            margin: 20px 0;
-        }
-
-        .run-modal-info-text {
-            font-size: 13px;
-            color: var(--vscode-descriptionForeground, #8b8b8b);
-            padding: 12px;
-            background: var(--vscode-editor-inactiveSelectionBackground, #37373d);
+        .run-pipeline-modal .modal-button {
+            padding: 8px 16px;
+            border: none;
             border-radius: 4px;
-        }
-
-        .run-modal-param-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .run-modal-param-item {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .run-modal-param-label {
             font-size: 13px;
             font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .run-pipeline-modal .modal-button.secondary {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+        }
+        .run-pipeline-modal .modal-button.secondary:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+        }
+        .run-pipeline-modal .modal-button.primary {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+        }
+        .run-pipeline-modal .modal-button.primary:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+        .run-pipeline-modal .modal-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -1695,76 +1707,78 @@ export class PipelineEditorPanel {
     </div>
 
     <!-- Run Pipeline Modal -->
-    <div id="runPipelineModal" class="run-pipeline-modal">
-        <div class="run-modal-overlay" id="runModalOverlay"></div>
-        <div class="run-modal-panel">
-            <div class="run-modal-header">
-                <div class="run-modal-title-section">
-                    <div class="run-modal-title">Run pipeline</div>
-                    <div class="run-modal-subtitle">Configure and start a new pipeline run</div>
+    <div class="run-pipeline-modal" id="runPipelineModal">
+        <div class="modal-overlay" id="runModalOverlay"></div>
+        <div class="modal-panel">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title">Run pipeline</div>
+                    <div class="modal-subtitle">Select parameters below and manually run the pipeline</div>
                 </div>
-                <button class="run-modal-close" id="runModalCloseBtn">
-                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                        <path fill-rule="evenodd" d="M4.28 3.22a.75.75 0 00-1.06 1.06L6.94 8l-3.72 3.72a.75.75 0 101.06 1.06L8 9.06l3.72 3.72a.75.75 0 101.06-1.06L9.06 8l3.72-3.72a.75.75 0 00-1.06-1.06L8 6.94 4.28 3.22z"/>
-                    </svg>
-                </button>
+                <button class="modal-close" id="runModalCloseBtn">×</button>
             </div>
-            <div class="run-modal-body">
-                <div class="run-modal-section">
-                    <div class="run-modal-section-label">Pipeline version</div>
-                    <select class="run-modal-select" id="runBranchSelect">
-                        <option value="${defaultBranch}">${defaultBranch}</option>
-                    </select>
+            <div class="modal-content">
+                <div class="modal-section">
+                    <div class="modal-section-title">Pipeline version</div>
+                    <div class="modal-form-group">
+                        <label class="modal-label">Select pipeline version by branch/tag</label>
+                        <select class="modal-input" id="runBranchSelect">
+                            <option value="${defaultBranch}">${defaultBranch}</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Runtime Parameters Section -->
                 <div id="runParametersSection" style="display: none;">
-                    <div class="run-modal-divider"></div>
-                    <div class="run-modal-section">
-                        <div class="run-modal-section-label">Parameters</div>
-                        <div class="run-modal-param-group" id="runParametersContainer"></div>
+                    <div class="modal-divider"></div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Parameters</div>
+                        <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-bottom: 16px;">
+                            Configure runtime parameters for this pipeline run
+                        </div>
+                        <div id="runParametersContainer"></div>
                     </div>
                 </div>
 
-                <div class="run-modal-divider"></div>
+                <div class="modal-divider"></div>
 
-                <div class="run-modal-section">
-                    <div class="run-modal-section-label">Advanced options</div>
+                <div class="modal-section">
+                    <div class="modal-section-title">Advanced options</div>
 
                     <!-- Stages Section -->
-                    <div id="runStagesExpandable" class="run-modal-expandable" style="display: none;">
-                        <div class="run-modal-expandable-header" onclick="document.getElementById('runStagesExpandable').classList.toggle('expanded')">
-                            <div class="run-modal-expandable-title">Stages to run</div>
-                            <div class="run-modal-expandable-arrow">▶</div>
+                    <div id="runStagesExpandable" class="modal-expandable-section" style="display: none;">
+                        <div class="modal-expandable-header" onclick="document.getElementById('runStagesExpandable').classList.toggle('expanded')">
+                            <div class="modal-expandable-title">Stages to run</div>
+                            <div class="modal-expandable-arrow">▶</div>
                         </div>
-                        <div class="run-modal-expandable-content">
-                            <div class="run-modal-checkbox-group" id="runStagesContainer"></div>
+                        <div class="modal-expandable-content">
+                            <div class="modal-checkbox-group" id="runStagesContainer"></div>
                         </div>
                     </div>
 
-                    <div id="runNoStagesText" class="run-modal-info-text" style="display: none;">
+                    <div id="runNoStagesText" class="modal-info-text" style="display: none;">
                         Run all stages as configured
                     </div>
 
                     <!-- Variables Section -->
-                    <div id="runVariablesExpandable" class="run-modal-expandable" style="display: none;">
-                        <div class="run-modal-expandable-header" onclick="document.getElementById('runVariablesExpandable').classList.toggle('expanded')">
-                            <div class="run-modal-expandable-title">Variables</div>
-                            <div class="run-modal-expandable-arrow">▶</div>
+                    <div id="runVariablesExpandable" class="modal-expandable-section" style="display: none;">
+                        <div class="modal-expandable-header" onclick="document.getElementById('runVariablesExpandable').classList.toggle('expanded')">
+                            <div class="modal-expandable-title">Variables</div>
+                            <div class="modal-expandable-arrow">▶</div>
                         </div>
-                        <div class="run-modal-expandable-content">
-                            <div class="run-modal-variable-list" id="runVariablesContainer"></div>
+                        <div class="modal-expandable-content">
+                            <div class="modal-variable-list" id="runVariablesContainer"></div>
                         </div>
                     </div>
 
-                    <div id="runNoVariablesText" class="run-modal-info-text" style="display: none;">
+                    <div id="runNoVariablesText" class="modal-info-text" style="display: none;">
                         This pipeline has no defined variables
                     </div>
                 </div>
             </div>
-            <div class="run-modal-footer">
-                <button id="runModalCancelBtn" class="modal-btn cancel">Cancel</button>
-                <button id="runModalRunBtn" class="modal-btn save">Run</button>
+            <div class="modal-footer">
+                <button id="runModalCancelBtn" class="modal-button secondary">Cancel</button>
+                <button id="runModalRunBtn" class="modal-button primary">Run</button>
             </div>
         </div>
     </div>
@@ -2009,8 +2023,8 @@ export class PipelineEditorPanel {
                     if (param.type === 'boolean') {
                         const isChecked = param.default === true || param.default === 'true';
                         return \`
-                            <div class="run-modal-param-item">
-                                <div class="run-modal-checkbox-item">
+                            <div class="modal-form-group">
+                                <div class="modal-checkbox-item">
                                     <input type="checkbox" id="\${paramId}" \${isChecked ? 'checked' : ''}>
                                     <label for="\${paramId}">\${displayName}</label>
                                 </div>
@@ -2020,9 +2034,9 @@ export class PipelineEditorPanel {
 
                     if (param.values && param.values.length > 0) {
                         return \`
-                            <div class="run-modal-param-item">
-                                <label class="run-modal-param-label">\${displayName}</label>
-                                <select class="run-modal-select" id="\${paramId}">
+                            <div class="modal-form-group">
+                                <label class="modal-label">\${displayName}</label>
+                                <select class="modal-input" id="\${paramId}">
                                     \${param.values.map(val => \`
                                         <option value="\${val}" \${val === param.default ? 'selected' : ''}>\${val}</option>
                                     \`).join('')}
@@ -2032,9 +2046,9 @@ export class PipelineEditorPanel {
                     }
 
                     return \`
-                        <div class="run-modal-param-item">
-                            <label class="run-modal-param-label">\${displayName}</label>
-                            <input type="text" class="run-modal-input" id="\${paramId}"
+                        <div class="modal-form-group">
+                            <label class="modal-label">\${displayName}</label>
+                            <input type="text" class="modal-input" id="\${paramId}"
                                    value="\${param.default || ''}"
                                    placeholder="Enter value">
                         </div>
@@ -2051,7 +2065,7 @@ export class PipelineEditorPanel {
             const noStagesText = document.getElementById('runNoStagesText');
             if (data.stages && data.stages.length > 0) {
                 stagesContainer.innerHTML = data.stages.map(stage => \`
-                    <div class="run-modal-checkbox-item">
+                    <div class="modal-checkbox-item">
                         <input type="checkbox" id="run-stage-\${stage.name}" value="\${stage.name}" checked>
                         <label for="run-stage-\${stage.name}">\${stage.displayName || stage.name}</label>
                     </div>
@@ -2070,9 +2084,9 @@ export class PipelineEditorPanel {
             const variableEntries = data.variables ? Object.entries(data.variables) : [];
             if (variableEntries.length > 0) {
                 variablesContainer.innerHTML = variableEntries.map(([key, value]) => \`
-                    <div class="run-modal-variable-item">
-                        <div class="run-modal-variable-name">\${key}</div>
-                        <input type="text" class="run-modal-input" id="run-var-\${key}" value="\${value}" data-var-name="\${key}">
+                    <div class="modal-variable-item">
+                        <div class="modal-variable-name">\${key}</div>
+                        <input type="text" class="modal-input" id="run-var-\${key}" value="\${value}" data-var-name="\${key}">
                     </div>
                 \`).join('');
                 variablesExpandable.style.display = 'block';
