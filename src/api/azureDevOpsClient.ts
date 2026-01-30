@@ -1129,25 +1129,36 @@ export class AzureDevOpsClient {
             throw new Error('Pipeline configuration not found');
         }
 
-        // Get default branch from repository
+        // Get default branch and repository name from repository API
         let defaultBranch = 'main';
-        if (config.repository.ref) {
-            defaultBranch = config.repository.ref.replace('refs/heads/', '');
-        } else {
+        let repositoryName = config.repository.name || '';
+
+        // If repository name is not in config, or we need the default branch, fetch from repos API
+        if (!repositoryName || !config.repository.ref) {
             try {
                 const repos = await this.getRepositories();
                 const repo = repos.find(r => r.id === config.repository.id);
-                if (repo?.defaultBranch) {
-                    defaultBranch = repo.defaultBranch.replace('refs/heads/', '');
+                if (repo) {
+                    if (!repositoryName) {
+                        repositoryName = repo.name;
+                    }
+                    if (repo.defaultBranch) {
+                        defaultBranch = repo.defaultBranch.replace('refs/heads/', '');
+                    }
                 }
             } catch (error) {
-                // Use default
+                // Use defaults
             }
+        }
+
+        // Use ref from config if available
+        if (config.repository.ref) {
+            defaultBranch = config.repository.ref.replace('refs/heads/', '');
         }
 
         return {
             repositoryId: config.repository.id,
-            repositoryName: config.repository.name || 'unknown',
+            repositoryName: repositoryName || 'Repository',
             yamlPath: config.path,
             defaultBranch: defaultBranch
         };

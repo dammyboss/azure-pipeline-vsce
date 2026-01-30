@@ -757,7 +757,7 @@ export class PipelineEditorPanel {
         .info-bar {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 10px;
             padding: 8px 16px;
             background: var(--vscode-editorWidget-background, #252526);
             border-bottom: 1px solid var(--vscode-panel-border, #454545);
@@ -767,7 +767,7 @@ export class PipelineEditorPanel {
         .info-item {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
 
         .info-label {
@@ -776,6 +776,11 @@ export class PipelineEditorPanel {
 
         .info-value {
             color: var(--vscode-foreground, #cccccc);
+        }
+
+        .azure-repos-icon {
+            flex-shrink: 0;
+            border-radius: 3px;
         }
 
         /* Validation result panel */
@@ -900,11 +905,14 @@ export class PipelineEditorPanel {
 
     <div class="info-bar">
         <div class="info-item">
-            <span class="info-label">Repository:</span>
-            <span class="info-value">${this._pipelineConfig?.repositoryName || 'Loading...'}</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Path:</span>
+            <svg class="azure-repos-icon" width="20" height="20" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="18" height="18" rx="2" fill="#D15215"/>
+                <rect y="-1" width="18" height="3" rx="1" fill="#B13E10"/>
+                <path d="M11.5 4.5C11.5 5.32843 10.8284 6 10 6C9.17157 6 8.5 5.32843 8.5 4.5C8.5 3.67157 9.17157 3 10 3C10.8284 3 11.5 3.67157 11.5 4.5Z" fill="#F9D9C9"/>
+                <path d="M6.5 13.5C6.5 14.3284 5.82843 15 5 15C4.17157 15 3.5 14.3284 3.5 13.5C3.5 12.6716 4.17157 12 5 12C5.82843 12 6.5 12.6716 6.5 13.5Z" fill="#F9D9C9"/>
+                <path d="M14.5 13.5C14.5 14.3284 13.8284 15 13 15C12.1716 15 11.5 14.3284 11.5 13.5C11.5 12.6716 12.1716 12 13 12C13.8284 12 14.5 12.6716 14.5 13.5Z" fill="#F9D9C9"/>
+                <path d="M10 6V8.5L5 12M10 8.5L13 12" stroke="#F9D9C9" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
             <span class="info-value">${this._pipelineConfig?.yamlPath || 'Loading...'}</span>
         </div>
     </div>
