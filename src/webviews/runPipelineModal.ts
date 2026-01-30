@@ -612,17 +612,19 @@ export class RunPipelineModal {
             // Collect runtime parameters (template parameters)
             const templateParameters = {};
 
-            // Handle checkboxes (boolean parameters)
+            // Handle checkboxes, text inputs, number inputs, and select dropdowns
             document.querySelectorAll('[id^="modal-param-"]:not([type="radio"])').forEach(input => {
                 const key = input.id.replace('modal-param-', '');
                 if (input.type === 'checkbox') {
                     templateParameters[key] = input.checked.toString();
+                } else if (input.tagName === 'SELECT') {
+                    templateParameters[key] = input.value;
                 } else if (input.value !== '' && input.value !== undefined) {
                     templateParameters[key] = input.value;
                 }
             });
 
-            // Handle radio buttons (string parameters with values)
+            // Handle radio buttons (string parameters with few values)
             document.querySelectorAll('.modal-radio-group').forEach(group => {
                 const paramName = group.dataset.paramName;
                 const checkedRadio = group.querySelector('input[type="radio"]:checked');
@@ -684,25 +686,41 @@ export class RunPipelineModal {
                 \`;
             }
 
-            // String with values - render as radio buttons (matching Azure DevOps browser UI)
+            // String with values - render based on number of options (matching Azure DevOps browser UI)
+            // 3 or fewer values: radio buttons, 4+ values: dropdown
             if (param.values && param.values.length > 0) {
-                return \`
-                    <div class="modal-form-group">
-                        <label class="modal-label">\${displayName}</label>
-                        <div class="modal-radio-group" data-param-name="\${param.name}">
-                            \${param.values.map((val, i) => \`
-                                <div class="modal-radio-item">
-                                    <input type="radio"
-                                           name="modal-param-\${param.name}"
-                                           id="\${paramId}-\${i}"
-                                           value="\${val}"
-                                           \${val === param.default ? 'checked' : ''}>
-                                    <label for="\${paramId}-\${i}">\${val}</label>
-                                </div>
-                            \`).join('')}
+                if (param.values.length <= 3) {
+                    // Radio buttons for small number of options
+                    return \`
+                        <div class="modal-form-group">
+                            <label class="modal-label">\${displayName}</label>
+                            <div class="modal-radio-group" data-param-name="\${param.name}">
+                                \${param.values.map((val, i) => \`
+                                    <div class="modal-radio-item">
+                                        <input type="radio"
+                                               name="modal-param-\${param.name}"
+                                               id="\${paramId}-\${i}"
+                                               value="\${val}"
+                                               \${val === param.default ? 'checked' : ''}>
+                                        <label for="\${paramId}-\${i}">\${val}</label>
+                                    </div>
+                                \`).join('')}
+                            </div>
                         </div>
-                    </div>
-                \`;
+                    \`;
+                } else {
+                    // Dropdown for larger number of options
+                    return \`
+                        <div class="modal-form-group">
+                            <label class="modal-label">\${displayName}</label>
+                            <select class="modal-input" id="\${paramId}">
+                                \${param.values.map(val => \`
+                                    <option value="\${val}" \${val === param.default ? 'selected' : ''}>\${val}</option>
+                                \`).join('')}
+                            </select>
+                        </div>
+                    \`;
+                }
             }
 
             // Number type - render as number input
