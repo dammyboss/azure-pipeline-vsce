@@ -1337,20 +1337,21 @@ export class PipelineEditorPanel {
         /* Slideout Modal Panel */
         .modal-panel {
             position: fixed;
-            top: 0;
+            top: 2%;
             right: -450px;
             width: 450px;
-            height: 100%;
+            height: calc(100% - 4% - 40px);
             background: var(--vscode-sideBar-background, #252526);
             box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
             display: flex;
             flex-direction: column;
             transition: right 0.3s ease;
             z-index: 2001;
+            border-radius: 8px;
         }
 
         .modal-panel.visible {
-            right: 0;
+            right: 1%;
         }
 
         .modal-header {
@@ -1417,7 +1418,7 @@ export class PipelineEditorPanel {
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 12px 14px;
+            padding: 12px 0;
             background: transparent;
             border-radius: 6px;
             font-size: 13px;
@@ -1441,25 +1442,26 @@ export class PipelineEditorPanel {
             width: 100%;
             padding: 10px 12px;
             background: var(--vscode-input-background, #3c3c3c);
-            color: var(--vscode-input-foreground, #cccccc);
-            border: 1px solid var(--vscode-input-border, #454545);
-            border-radius: 6px;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            border-radius: 2px;
             font-size: 13px;
             font-family: inherit;
         }
 
         .modal-input:focus {
             outline: none;
-            border-color: var(--vscode-focusBorder, #007acc);
+            border: 2px solid #0078d4;
+            padding: 9px 11px;
         }
 
         .modal-textarea {
             width: 100%;
             padding: 10px 12px;
             background: var(--vscode-input-background, #3c3c3c);
-            color: var(--vscode-input-foreground, #cccccc);
-            border: 1px solid var(--vscode-input-border, #454545);
-            border-radius: 6px;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            border-radius: 2px;
             font-size: 13px;
             font-family: inherit;
             resize: vertical;
@@ -1468,7 +1470,8 @@ export class PipelineEditorPanel {
 
         .modal-textarea:focus {
             outline: none;
-            border-color: var(--vscode-focusBorder, #007acc);
+            border: 2px solid #0078d4;
+            padding: 9px 11px;
         }
 
         .radio-group {
@@ -2834,7 +2837,7 @@ export class PipelineEditorPanel {
 
             if (valid) {
                 modalValidationStatus.className = 'validation-status success';
-                modalValidationStatus.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#107c10"/><path d="M15.78 5.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L4.22 10.28a.75.75 0 011.06-1.06L8 11.94l6.72-6.72a.75.75 0 011.06 0z" fill="#ffffff"/></svg><span>' + message + '</span>';
+                modalValidationStatus.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="#107c10"/><path d="M12.78 4.22a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 01-1.06 0L3.22 7.28a.75.75 0 011.06-1.06L7 8.94l4.72-4.72a.75.75 0 011.06 0z" fill="#ffffff"/></svg><span>' + message + '</span>';
             } else {
                 modalValidationStatus.className = 'validation-status error';
                 modalValidationStatus.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM0 8a8 8 0 1116 0A8 8 0 010 8zm8-3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 5zm0 8a1 1 0 100-2 1 1 0 000 2z"/></svg><span>' + message + '</span>';
