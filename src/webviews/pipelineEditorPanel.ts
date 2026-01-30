@@ -1868,7 +1868,7 @@ export class PipelineEditorPanel {
             position: absolute;
             top: 2%;
             right: 1%;
-            bottom: 2%;
+            bottom: 4%;
             width: 550px;
             max-width: 85vw;
             background: var(--vscode-editor-background);
@@ -2113,6 +2113,8 @@ export class PipelineEditorPanel {
         }
         .variable-form {
             padding: 24px 32px;
+            flex: 1;
+            overflow-y: auto;
         }
         .back-button {
             background: none;
