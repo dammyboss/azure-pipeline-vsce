@@ -778,6 +778,19 @@ export class PipelineEditorPanel {
             color: var(--vscode-foreground, #cccccc);
         }
 
+        .repo-name {
+            font-weight: 500;
+        }
+
+        .info-separator {
+            color: var(--vscode-descriptionForeground, #8b8b8b);
+            margin: 0 2px;
+        }
+
+        .file-name {
+            color: var(--vscode-textLink-foreground, #3794ff);
+        }
+
         .azure-repos-icon {
             flex-shrink: 0;
             border-radius: 3px;
@@ -905,7 +918,7 @@ export class PipelineEditorPanel {
 
     <div class="info-bar">
         <div class="info-item">
-            <svg class="azure-repos-icon" width="20" height="20" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg class="azure-repos-icon" width="18" height="18" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g clip-path="url(#prefix__clip0_9_19)">
                     <mask id="prefix__a" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
                         <path d="M512 0H0v512h512V0z" fill="#fff"/>
@@ -925,7 +938,9 @@ export class PipelineEditorPanel {
                     </clipPath>
                 </defs>
             </svg>
-            <span class="info-value">${this._pipelineConfig?.yamlPath || 'Loading...'}</span>
+            <span class="info-value repo-name">${this._pipelineConfig?.repositoryName || 'Loading...'}</span>
+            <span class="info-separator">/</span>
+            <span class="info-value file-name">${this._pipelineConfig?.yamlPath?.split('/').pop() || 'Loading...'}</span>
         </div>
     </div>
 
