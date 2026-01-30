@@ -11,12 +11,15 @@ export class TaskService {
         timestamp: number;
     } | null = null;
 
+    private iconCache: Map<string, string> = new Map(); // taskId -> data URL
+
     private readonly CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
     constructor(private client: AzureDevOpsClient) {}
 
     /**
      * Get all available tasks (with caching)
+     * Icons are NOT loaded by this method - use loadIconsForTasks() separately
      */
     async getAllTasks(forceRefresh: boolean = false): Promise<TaskDefinition[]> {
         const now = Date.now();
@@ -33,51 +36,33 @@ export class TaskService {
         // Fetch fresh tasks
         const tasks = await this.client.getTaskDefinitions();
 
-        // The API response should already include iconUrl in the task definition
-        // If not present, generate it as fallback
+        // Store icon URLs but don't fetch them yet
         const config = this.client.getConfig();
-        let iconUrlCount = 0;
-        let linksIconCount = 0;
-        let generatedCount = 0;
-        let dataUrlCount = 0;
 
-        // Process icon URLs and convert to authenticated data URLs
         for (const task of tasks) {
             let iconUrl: string | undefined;
 
             // Priority 1: Check if iconUrl came from API
             if (task.iconUrl) {
                 iconUrl = task.iconUrl;
-                iconUrlCount++;
-                console.log(`Task ${task.name} has iconUrl from API: ${iconUrl}`);
             }
 
             // Priority 2: Check _links.icon.href if iconUrl is not directly available
             if (!iconUrl && task._links?.icon?.href) {
                 iconUrl = task._links.icon.href;
-                linksIconCount++;
-                console.log(`Task ${task.name} using _links.icon.href: ${iconUrl}`);
             }
 
             // Priority 3: Generate icon URL based on task ID and version
             if (!iconUrl && config.organizationUrl && task.id && task.version) {
                 // Format: {org}/_apis/distributedtask/tasks/{taskId}/{version}/icon
                 iconUrl = `${config.organizationUrl}/_apis/distributedtask/tasks/${task.id}/${task.version.Major}.${task.version.Minor}.${task.version.Patch}/icon`;
-                generatedCount++;
-                console.log(`Task ${task.name} generated iconUrl: ${iconUrl}`);
             }
 
-            // Fetch the icon as an authenticated data URL
+            // Store the icon URL (don't fetch yet)
             if (iconUrl) {
-                const dataUrl = await this.client.getTaskIconAsDataUrl(iconUrl);
-                if (dataUrl) {
-                    task.iconUrl = dataUrl;
-                    dataUrlCount++;
-                }
+                task.iconUrl = iconUrl;
             }
         }
-
-        console.log(`Icon URL stats - From API: ${iconUrlCount}, From _links: ${linksIconCount}, Generated: ${generatedCount}, Successfully converted to data URLs: ${dataUrlCount}, Total tasks: ${tasks.length}`);
 
         // Update cache
         this.taskCache = {
@@ -85,7 +70,39 @@ export class TaskService {
             timestamp: now
         };
 
+        console.log(`Loaded ${tasks.length} task definitions (icons will be loaded on demand)`);
+
         return tasks;
+    }
+
+    /**
+     * Load icons for a batch of tasks
+     * Converts icon URLs to base64 data URLs
+     */
+    async loadIconsForTasks(tasks: TaskDefinition[]): Promise<void> {
+        const loadPromises = tasks.map(async (task) => {
+            // Skip if already loaded
+            if (this.iconCache.has(task.id)) {
+                task.iconUrl = this.iconCache.get(task.id);
+                return;
+            }
+
+            // Skip if no icon URL
+            if (!task.iconUrl) {
+                return;
+            }
+
+            // Only convert if it's not already a data URL
+            if (!task.iconUrl.startsWith('data:')) {
+                const dataUrl = await this.client.getTaskIconAsDataUrl(task.iconUrl);
+                if (dataUrl) {
+                    task.iconUrl = dataUrl;
+                    this.iconCache.set(task.id, dataUrl);
+                }
+            }
+        });
+
+        await Promise.all(loadPromises);
     }
 
     /**

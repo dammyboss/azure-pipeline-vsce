@@ -143,20 +143,21 @@ export class TaskAssistantPanel {
      */
     private async loadTasks(): Promise<void> {
         try {
-            // Load all tasks in background (for caching)
-            const allTasksPromise = this._taskService.getAllTasks();
+            // Fetch all task definitions (fast - no icons yet)
+            const allTasks = await this._taskService.getAllTasks();
+
+            // Get initial batch
+            const initialBatch = allTasks.slice(0, 50);
+            const hasMore = allTasks.length > 50;
 
             // Get categories and popular tasks
             const categories = await this._taskService.getCategories();
             const popularTasks = await this._taskService.getPopularTasks();
 
-            // Wait for all tasks to be cached
-            const allTasks = await allTasksPromise;
+            // Load icons for popular tasks (small set)
+            await this._taskService.loadIconsForTasks(popularTasks);
 
-            // Send initial batch (first 50 tasks)
-            const initialBatch = allTasks.slice(0, 50);
-            const hasMore = allTasks.length > 50;
-
+            // Send initial batch WITHOUT icons first (fast)
             this._panel.webview.postMessage({
                 command: 'tasksLoaded',
                 tasks: this.simplifyTasks(initialBatch),
@@ -164,6 +165,15 @@ export class TaskAssistantPanel {
                 hasMore,
                 categories,
                 popularTasks: this.simplifyTasks(popularTasks)
+            });
+
+            // Load icons for initial batch in background
+            await this._taskService.loadIconsForTasks(initialBatch);
+
+            // Update webview with icons
+            this._panel.webview.postMessage({
+                command: 'updateTaskIcons',
+                tasks: this.simplifyTasks(initialBatch)
             });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -187,10 +197,20 @@ export class TaskAssistantPanel {
             const batch = allTasks.slice(offset, offset + limit);
             const hasMore = offset + limit < allTasks.length;
 
+            // Send tasks without icons first
             this._panel.webview.postMessage({
                 command: 'moreTasks',
                 tasks: this.simplifyTasks(batch),
                 hasMore
+            });
+
+            // Load icons in background
+            await this._taskService.loadIconsForTasks(batch);
+
+            // Update with icons
+            this._panel.webview.postMessage({
+                command: 'updateTaskIcons',
+                tasks: this.simplifyTasks(batch)
             });
         } catch (error) {
             console.error('Load more tasks error:', error);
@@ -654,6 +674,10 @@ export class TaskAssistantPanel {
                         }
                     }
                     break;
+                case 'updateTaskIcons':
+                    // Update icons for tasks that have already been rendered
+                    updateTaskIcons(message.tasks);
+                    break;
                 case 'searchResults':
                     hasMore = false;
                     if (observer) {
@@ -857,6 +881,39 @@ export class TaskAssistantPanel {
             if (observer) {
                 observer.disconnect();
             }
+        }
+
+        function updateTaskIcons(tasks) {
+            tasks.forEach(task => {
+                if (!task.iconUrl) return;
+
+                // Find the task item in the DOM
+                const taskItem = document.querySelector(\`[data-task-id="\${task.id}"]\`);
+                if (!taskItem) return;
+
+                // Find the icon element
+                const iconImg = taskItem.querySelector('.task-icon');
+                const iconPlaceholder = taskItem.querySelector('.task-icon-placeholder');
+
+                if (task.iconUrl.startsWith('data:')) {
+                    // Has a data URL icon
+                    if (iconImg) {
+                        iconImg.src = task.iconUrl;
+                        iconImg.style.display = '';
+                        if (iconPlaceholder) {
+                            iconPlaceholder.style.display = 'none';
+                        }
+                    } else if (iconPlaceholder) {
+                        // Create new img element
+                        const newImg = document.createElement('img');
+                        newImg.src = task.iconUrl;
+                        newImg.className = 'task-icon';
+                        newImg.alt = task.friendlyName + ' icon';
+                        taskItem.insertBefore(newImg, iconPlaceholder);
+                        iconPlaceholder.style.display = 'none';
+                    }
+                }
+            });
         }
 
         function showTaskDetails(task, prefilledInputs = {}, prefilledDisplayName = '') {
