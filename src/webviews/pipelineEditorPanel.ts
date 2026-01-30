@@ -2642,9 +2642,9 @@ export class PipelineEditorPanel {
         });
 
         // Modal functions
-        function openModal() {
+        function openModal(skipValidation = false) {
             modalValidationValid = false;
-            modalSaveBtn.disabled = true;
+            modalSaveBtn.disabled = !skipValidation;
             currentBranchLabel.textContent = selectedBranch;
             modalCommitMessage.value = 'Update ${this._pipeline.name} pipeline';
             modalDescription.value = '';
@@ -2652,20 +2652,29 @@ export class PipelineEditorPanel {
             newBranchContainer.classList.add('hidden');
             newBranchName.value = '';
 
-            // Show validating state
-            modalValidationStatus.className = 'validation-status validating';
-            modalValidationStatus.innerHTML = '<span class="spinner dark"></span><span>Validating pipeline...</span>';
+            if (skipValidation) {
+                // Hide validation status when skipping validation
+                modalValidationStatus.style.display = 'none';
+                modalValidationValid = true;
+            } else {
+                // Show validating state
+                modalValidationStatus.style.display = 'flex';
+                modalValidationStatus.className = 'validation-status validating';
+                modalValidationStatus.innerHTML = '<span class="spinner dark"></span><span>Validating pipeline...</span>';
+            }
 
             // Show modal with animation
             modalOverlay.classList.add('visible');
             setTimeout(() => modalPanel.classList.add('visible'), 10);
 
-            // Start validation
-            vscode.postMessage({
-                command: 'validateForModal',
-                content: editor.value,
-                branch: selectedBranch
-            });
+            // Start validation only if not skipping
+            if (!skipValidation) {
+                vscode.postMessage({
+                    command: 'validateForModal',
+                    content: editor.value,
+                    branch: selectedBranch
+                });
+            }
         }
 
         function closeModal() {
@@ -3085,7 +3094,8 @@ export class PipelineEditorPanel {
 
         // Handle validate without save
         validateWithoutSaveMenuItem.addEventListener('click', () => {
-            vscode.postMessage({ command: 'validateWithoutSave' });
+            // Open modal without validation
+            openModal(true);
             actionDropdownMenu.classList.remove('show');
         });
 
