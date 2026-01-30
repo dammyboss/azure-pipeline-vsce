@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { PipelineRun, TimelineRecord } from '../models/types';
+import { PipelineEditorPanel } from './pipelineEditorPanel';
 
 export class RunDetailsPanel {
     private static currentPanel: RunDetailsPanel | undefined;
@@ -520,26 +521,22 @@ export class RunDetailsPanel {
     private async editPipelineYaml() {
         try {
             const pipelineId = this.run.pipeline?.id || this.run.definition?.id;
+            const pipelineName = this.run.pipeline?.name || this.run.definition?.name || 'Pipeline';
+
             if (!pipelineId) {
                 vscode.window.showErrorMessage('Pipeline ID not found');
                 return;
             }
 
-            const yaml = await this.client.getPipelineYaml(pipelineId);
-
-            // Open in VSCode editor with YAML language support for full IntelliSense
-            const doc = await vscode.workspace.openTextDocument({
-                content: yaml,
-                language: 'yaml'
+            // Open the new pipeline editor panel with save to repository functionality
+            await PipelineEditorPanel.show(this.client, {
+                id: pipelineId,
+                name: pipelineName,
+                revision: 0,
+                url: ''
             });
-            await vscode.window.showTextDocument(doc, {
-                preview: false,
-                viewColumn: vscode.ViewColumn.Beside
-            });
-
-            vscode.window.showInformationMessage('Note: This is a read-only view of the pipeline YAML from the repository.');
         } catch (error) {
-            vscode.window.showErrorMessage(`Failed to load pipeline YAML: ${error}`);
+            vscode.window.showErrorMessage(`Failed to open pipeline editor: ${error}`);
         }
     }
 
