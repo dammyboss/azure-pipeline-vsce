@@ -102,12 +102,42 @@ export class RunPipelineModal {
 
     private async fetchBranches(): Promise<string[]> {
         try {
-            if (!this.pipeline.repository?.id) {
+            let repositoryId = this.pipeline.repository?.id;
+
+            // If repository ID is missing, try to fetch full pipeline details
+            if (!repositoryId) {
+                try {
+                    const fullPipeline = await this.client.getPipeline(this.pipeline.id);
+                    repositoryId = fullPipeline.repository?.id;
+                    // Update the pipeline reference with repository info
+                    if (fullPipeline.repository) {
+                        this.pipeline.repository = fullPipeline.repository;
+                    }
+                } catch (e) {
+                    // Ignore and continue with fallback
+                }
+            }
+
+            if (!repositoryId) {
+                // Fallback: try to get the first repository in the project
+                try {
+                    const repos = await this.client.getRepositories();
+                    if (repos && repos.length > 0) {
+                        repositoryId = repos[0].id;
+                    }
+                } catch (e) {
+                    // Ignore
+                }
+            }
+
+            if (!repositoryId) {
                 return ['main'];
             }
-            const branches = await this.client.getBranches(this.pipeline.repository.id);
+
+            const branches = await this.client.getBranches(repositoryId);
             return branches.map(b => b.name);
         } catch (error) {
+            console.error('Failed to fetch branches:', error);
             return ['main'];
         }
     }

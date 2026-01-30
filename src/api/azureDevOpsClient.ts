@@ -257,7 +257,14 @@ export class AzureDevOpsClient {
             `${this.organizationUrl}/${this.projectName}/_apis/pipelines/${pipelineId}`,
             { params: { 'api-version': '7.1-preview.1' } }
         );
-        return response.data;
+
+        // Map configuration.repository to top-level repository for consistency
+        const data = response.data;
+        if (data.configuration?.repository && !data.repository) {
+            data.repository = data.configuration.repository;
+        }
+
+        return data;
     }
 
     /**
