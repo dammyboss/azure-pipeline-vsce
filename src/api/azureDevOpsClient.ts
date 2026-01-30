@@ -16,7 +16,8 @@ import {
     ServiceEndpoint,
     AgentPool,
     Agent,
-    PipelineRunOptions
+    PipelineRunOptions,
+    RuntimeParameter
 } from '../models/types';
 
 /**
@@ -594,6 +595,152 @@ export class AzureDevOpsClient {
             return `# Pipeline: ${response.data.name}\n# ID: ${response.data.id}\n# Path: ${response.data.configuration?.path || 'N/A'}\n\n# Full pipeline definition not available`;
         } catch (error) {
             throw new Error(`Failed to get pipeline YAML: ${error}`);
+        }
+    }
+
+    /**
+     * Runtime parameter type definition
+     */
+    public parseRuntimeParameters(yaml: string): RuntimeParameter[] {
+        const parameters: RuntimeParameter[] = [];
+        const lines = yaml.split('\n');
+
+        let inParametersSection = false;
+        let currentParameter: Partial<RuntimeParameter> | null = null;
+        let inValuesSection = false;
+        let currentValues: string[] = [];
+        let baseIndent = 0;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+
+            // Skip empty lines and comments
+            if (!trimmed || trimmed.startsWith('#')) {
+                continue;
+            }
+
+            // Detect start of parameters section
+            if (trimmed === 'parameters:' || trimmed.startsWith('parameters:')) {
+                inParametersSection = true;
+                baseIndent = line.search(/\S/);
+                continue;
+            }
+
+            // Check if we've exited parameters section (new top-level key)
+            if (inParametersSection) {
+                const currentIndent = line.search(/\S/);
+                if (currentIndent <= baseIndent && !trimmed.startsWith('-')) {
+                    // We've reached a new section at same or lower indent level
+                    if (currentParameter && currentParameter.name) {
+                        if (currentValues.length > 0) {
+                            currentParameter.values = currentValues;
+                        }
+                        parameters.push(currentParameter as RuntimeParameter);
+                    }
+                    inParametersSection = false;
+                    currentParameter = null;
+                    continue;
+                }
+            }
+
+            if (!inParametersSection) {
+                continue;
+            }
+
+            // Parse parameter entry (starts with -)
+            if (trimmed.startsWith('- name:')) {
+                // Save previous parameter if exists
+                if (currentParameter && currentParameter.name) {
+                    if (currentValues.length > 0) {
+                        currentParameter.values = currentValues;
+                    }
+                    parameters.push(currentParameter as RuntimeParameter);
+                }
+
+                // Start new parameter
+                const nameMatch = trimmed.match(/^-\s*name:\s*['"]?([^'"]+)['"]?$/);
+                currentParameter = {
+                    name: nameMatch ? nameMatch[1].trim() : '',
+                    type: 'string', // default type
+                    default: undefined,
+                    displayName: undefined,
+                    values: undefined
+                };
+                currentValues = [];
+                inValuesSection = false;
+                continue;
+            }
+
+            // Parse parameter properties
+            if (currentParameter) {
+                if (trimmed.startsWith('type:')) {
+                    const typeMatch = trimmed.match(/^type:\s*['"]?([^'"]+)['"]?$/);
+                    if (typeMatch) {
+                        const validTypes = ['string', 'boolean', 'number', 'object', 'step', 'stepList', 'job', 'jobList', 'deployment', 'deploymentList', 'stage', 'stageList', 'stringList'];
+                        const parsedType = typeMatch[1].trim();
+                        currentParameter.type = validTypes.includes(parsedType) ? parsedType as RuntimeParameter['type'] : 'string';
+                    }
+                } else if (trimmed.startsWith('displayName:')) {
+                    const displayMatch = trimmed.match(/^displayName:\s*['"]?([^'"]+)['"]?$/);
+                    if (displayMatch) {
+                        currentParameter.displayName = displayMatch[1].trim();
+                    }
+                } else if (trimmed.startsWith('default:')) {
+                    const defaultMatch = trimmed.match(/^default:\s*(.*)$/);
+                    if (defaultMatch) {
+                        let defaultVal = defaultMatch[1].trim();
+                        // Remove quotes if present
+                        if ((defaultVal.startsWith("'") && defaultVal.endsWith("'")) ||
+                            (defaultVal.startsWith('"') && defaultVal.endsWith('"'))) {
+                            defaultVal = defaultVal.slice(1, -1);
+                        }
+                        // Handle boolean and number types
+                        if (currentParameter.type === 'boolean') {
+                            currentParameter.default = defaultVal.toLowerCase() === 'true';
+                        } else if (currentParameter.type === 'number') {
+                            currentParameter.default = parseFloat(defaultVal) || 0;
+                        } else {
+                            currentParameter.default = defaultVal;
+                        }
+                    }
+                } else if (trimmed === 'values:') {
+                    inValuesSection = true;
+                    currentValues = [];
+                } else if (inValuesSection && trimmed.startsWith('-')) {
+                    // Parse value item
+                    const valueMatch = trimmed.match(/^-\s*['"]?([^'"]+)['"]?$/);
+                    if (valueMatch) {
+                        currentValues.push(valueMatch[1].trim());
+                    }
+                } else if (inValuesSection && !trimmed.startsWith('-') && trimmed.includes(':')) {
+                    // We've moved past values section
+                    inValuesSection = false;
+                }
+            }
+        }
+
+        // Don't forget the last parameter
+        if (currentParameter && currentParameter.name) {
+            if (currentValues.length > 0) {
+                currentParameter.values = currentValues;
+            }
+            parameters.push(currentParameter as RuntimeParameter);
+        }
+
+        return parameters;
+    }
+
+    /**
+     * Get runtime parameters for a pipeline by fetching and parsing the YAML
+     */
+    async getPipelineRuntimeParameters(pipelineId: number): Promise<RuntimeParameter[]> {
+        try {
+            const yaml = await this.getPipelineYaml(pipelineId);
+            return this.parseRuntimeParameters(yaml);
+        } catch (error) {
+            console.error('Failed to get pipeline runtime parameters:', error);
+            return [];
         }
     }
 

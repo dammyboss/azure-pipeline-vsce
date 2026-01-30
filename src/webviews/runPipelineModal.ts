@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
-import { Pipeline } from '../models/types';
+import { Pipeline, RuntimeParameter } from '../models/types';
 
 /**
  * Lightweight modal for running pipelines
@@ -72,10 +72,11 @@ export class RunPipelineModal {
     private async initialize() {
         try {
             // Fetch required data
-            const [branches, variables, stages] = await Promise.all([
+            const [branches, variables, stages, runtimeParameters] = await Promise.all([
                 this.fetchBranches(),
                 this.fetchVariables(),
-                this.fetchStages()
+                this.fetchStages(),
+                this.fetchRuntimeParameters()
             ]);
 
             // Set HTML content and show modal immediately
@@ -89,6 +90,7 @@ export class RunPipelineModal {
                     branches,
                     variables,
                     stages,
+                    runtimeParameters,
                     defaultBranch: this.sourceBranch?.replace('refs/heads/', '') || branches[0] || 'main'
                 }
             });
@@ -100,15 +102,12 @@ export class RunPipelineModal {
 
     private async fetchBranches(): Promise<string[]> {
         try {
-            vscode.window.showInformationMessage(`Repository ID: ${this.pipeline.repository?.id || 'MISSING'}`);
             if (!this.pipeline.repository?.id) {
                 return ['main'];
             }
             const branches = await this.client.getBranches(this.pipeline.repository.id);
-            vscode.window.showInformationMessage(`Fetched ${branches.length} branches`);
             return branches.map(b => b.name);
         } catch (error) {
-            vscode.window.showErrorMessage(`Branch fetch error: ${error}`);
             return ['main'];
         }
     }
@@ -200,6 +199,14 @@ export class RunPipelineModal {
             }
 
             return stages;
+        } catch (error) {
+            return [];
+        }
+    }
+
+    private async fetchRuntimeParameters(): Promise<RuntimeParameter[]> {
+        try {
+            return await this.client.getPipelineRuntimeParameters(this.pipeline.id);
         } catch (error) {
             return [];
         }
@@ -453,6 +460,35 @@ export class RunPipelineModal {
             width: 16px;
             height: 16px;
             cursor: pointer;
+            accent-color: var(--vscode-button-background);
+        }
+
+        /* Radio button styles for string parameters with values */
+        .modal-radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .modal-radio-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-radio-item input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--vscode-button-background);
+        }
+
+        .modal-radio-item label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: 400;
+            font-size: 13px;
         }
 
         .modal-checkbox-item label {
@@ -573,7 +609,29 @@ export class RunPipelineModal {
                 stagesToRun.push(checkbox.value);
             });
 
-            // Collect variables
+            // Collect runtime parameters (template parameters)
+            const templateParameters = {};
+
+            // Handle checkboxes (boolean parameters)
+            document.querySelectorAll('[id^="modal-param-"]:not([type="radio"])').forEach(input => {
+                const key = input.id.replace('modal-param-', '');
+                if (input.type === 'checkbox') {
+                    templateParameters[key] = input.checked.toString();
+                } else if (input.value !== '' && input.value !== undefined) {
+                    templateParameters[key] = input.value;
+                }
+            });
+
+            // Handle radio buttons (string parameters with values)
+            document.querySelectorAll('.modal-radio-group').forEach(group => {
+                const paramName = group.dataset.paramName;
+                const checkedRadio = group.querySelector('input[type="radio"]:checked');
+                if (paramName && checkedRadio) {
+                    templateParameters[paramName] = checkedRadio.value;
+                }
+            });
+
+            // Collect variables (legacy pipeline variables)
             const variables = {};
             document.querySelectorAll('[id^="modal-var-"]').forEach(input => {
                 const key = input.id.replace('modal-var-', '');
@@ -581,6 +639,9 @@ export class RunPipelineModal {
                     variables[key] = input.value;
                 }
             });
+
+            // Merge template parameters with variables for the API call
+            const allVariables = { ...variables, ...templateParameters };
 
             const allStages = pipelineData?.stages ? pipelineData.stages.map(s => s.name) : [];
 
@@ -591,7 +652,7 @@ export class RunPipelineModal {
                     commit: commit || undefined,
                     stagesToRun,
                     allStages,
-                    variables: Object.keys(variables).length > 0 ? variables : undefined,
+                    variables: Object.keys(allVariables).length > 0 ? allVariables : undefined,
                     enableDiagnostics
                 }
             });
@@ -606,8 +667,65 @@ export class RunPipelineModal {
             }
         });
 
+        function renderParameterInput(param, index) {
+            const paramId = 'modal-param-' + param.name;
+            const displayName = param.displayName || param.name;
+
+            // Boolean type - render as checkbox (matching Azure DevOps browser UI)
+            if (param.type === 'boolean') {
+                const isChecked = param.default === true || param.default === 'true';
+                return \`
+                    <div class="modal-form-group">
+                        <div class="modal-checkbox-item" style="padding: 8px 0;">
+                            <input type="checkbox" id="\${paramId}" \${isChecked ? 'checked' : ''}>
+                            <label for="\${paramId}" style="font-weight: 500;">\${displayName}</label>
+                        </div>
+                    </div>
+                \`;
+            }
+
+            // String with values - render as radio buttons (matching Azure DevOps browser UI)
+            if (param.values && param.values.length > 0) {
+                return \`
+                    <div class="modal-form-group">
+                        <label class="modal-label">\${displayName}</label>
+                        <div class="modal-radio-group" data-param-name="\${param.name}">
+                            \${param.values.map((val, i) => \`
+                                <div class="modal-radio-item">
+                                    <input type="radio"
+                                           name="modal-param-\${param.name}"
+                                           id="\${paramId}-\${i}"
+                                           value="\${val}"
+                                           \${val === param.default ? 'checked' : ''}>
+                                    <label for="\${paramId}-\${i}">\${val}</label>
+                                </div>
+                            \`).join('')}
+                        </div>
+                    </div>
+                \`;
+            }
+
+            // Number type - render as number input
+            if (param.type === 'number') {
+                return \`
+                    <div class="modal-form-group">
+                        <label class="modal-label">\${displayName}</label>
+                        <input type="number" class="modal-input" id="\${paramId}" value="\${param.default !== undefined ? param.default : ''}" placeholder="Enter number">
+                    </div>
+                \`;
+            }
+
+            // Default - render as text input (string, object, etc.)
+            return \`
+                <div class="modal-form-group">
+                    <label class="modal-label">\${displayName}</label>
+                    <input type="text" class="modal-input" id="\${paramId}" value="\${param.default !== undefined ? param.default : ''}" placeholder="Enter value">
+                </div>
+            \`;
+        }
+
         function renderForm(data) {
-            const { branches, variables, stages, defaultBranch, pipeline } = data;
+            const { branches, variables, stages, runtimeParameters, defaultBranch, pipeline } = data;
 
             const content = document.getElementById('modalContent');
             content.innerHTML = \`
@@ -630,12 +748,16 @@ export class RunPipelineModal {
                     </div>
                 </div>
 
-                <div class="modal-divider"></div>
-
-                <div class="modal-section">
-                    <div class="modal-section-title">Pipeline artifacts</div>
-                    <div class="modal-info-text">No pipeline artifacts found.</div>
-                </div>
+                \${runtimeParameters && runtimeParameters.length > 0 ? \`
+                    <div class="modal-divider"></div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Parameters</div>
+                        <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-bottom: 16px;">
+                            Configure runtime parameters for this pipeline run
+                        </div>
+                        \${runtimeParameters.map((param, index) => renderParameterInput(param, index)).join('')}
+                    </div>
+                \` : ''}
 
                 <div class="modal-divider"></div>
 
@@ -711,11 +833,7 @@ export class RunPipelineModal {
                                 </div>
                             </div>
                         </div>
-                    \` : \`
-                        <div class="modal-info-text" style="margin-top: 12px;">
-                            This pipeline has no defined variables
-                        </div>
-                    \`}
+                    \` : ''}
                 </div>
 
                 <div class="modal-form-group" style="margin-top: 24px;">

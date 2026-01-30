@@ -258,3 +258,15 @@ export interface PipelineRunOptions {
     variables?: Record<string, string>;
     stagesToSkip?: string[];
 }
+
+/**
+ * Runtime parameter definition for pipelines
+ * Represents parameters defined in the YAML pipeline's parameters section
+ */
+export interface RuntimeParameter {
+    name: string;
+    type: 'string' | 'boolean' | 'number' | 'object' | 'step' | 'stepList' | 'job' | 'jobList' | 'deployment' | 'deploymentList' | 'stage' | 'stageList' | 'stringList';
+    displayName?: string;
+    default?: string | boolean | number | any;
+    values?: string[];  // For dropdown/select options
+}
