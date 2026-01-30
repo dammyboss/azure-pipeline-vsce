@@ -1035,4 +1035,121 @@ export class AzureDevOpsClient {
         );
         return response.data.value || [];
     }
+
+    /**
+     * Get the latest commit SHA for a specific branch
+     */
+    async getBranchCommitSha(repositoryId: string, branchName: string): Promise<string> {
+        const response = await this.axiosInstance.get(
+            `${this.organizationUrl}/${this.projectName}/_apis/git/repositories/${repositoryId}/refs`,
+            {
+                params: {
+                    'api-version': '7.1',
+                    'filter': `heads/${branchName}`
+                }
+            }
+        );
+
+        if (response.data.value && response.data.value.length > 0) {
+            return response.data.value[0].objectId;
+        }
+
+        throw new Error(`Branch '${branchName}' not found in repository`);
+    }
+
+    /**
+     * Push file changes to the repository
+     * This creates a commit and pushes it directly to the specified branch
+     */
+    async pushFileToRepository(
+        repositoryId: string,
+        branchName: string,
+        filePath: string,
+        content: string,
+        commitMessage: string,
+        changeType: 'add' | 'edit' | 'delete' = 'edit'
+    ): Promise<any> {
+        // Get the current commit SHA for the branch
+        const oldObjectId = await this.getBranchCommitSha(repositoryId, branchName);
+
+        // Prepare the push request body
+        const pushBody = {
+            refUpdates: [
+                {
+                    name: `refs/heads/${branchName}`,
+                    oldObjectId: oldObjectId
+                }
+            ],
+            commits: [
+                {
+                    comment: commitMessage,
+                    changes: [
+                        {
+                            changeType: changeType,
+                            item: {
+                                path: filePath
+                            },
+                            ...(changeType !== 'delete' && {
+                                newContent: {
+                                    content: content,
+                                    contentType: 'rawtext'
+                                }
+                            })
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const response = await this.axiosInstance.post(
+            `${this.organizationUrl}/${this.projectName}/_apis/git/repositories/${repositoryId}/pushes`,
+            pushBody,
+            { params: { 'api-version': '7.1' } }
+        );
+
+        return response.data;
+    }
+
+    /**
+     * Get pipeline configuration details including repository and YAML path
+     */
+    async getPipelineConfiguration(pipelineId: number): Promise<{
+        repositoryId: string;
+        repositoryName: string;
+        yamlPath: string;
+        defaultBranch: string;
+    }> {
+        const response = await this.axiosInstance.get(
+            `${this.organizationUrl}/${this.projectName}/_apis/pipelines/${pipelineId}`,
+            { params: { 'api-version': '7.1' } }
+        );
+
+        const config = response.data.configuration;
+        if (!config || !config.repository) {
+            throw new Error('Pipeline configuration not found');
+        }
+
+        // Get default branch from repository
+        let defaultBranch = 'main';
+        if (config.repository.ref) {
+            defaultBranch = config.repository.ref.replace('refs/heads/', '');
+        } else {
+            try {
+                const repos = await this.getRepositories();
+                const repo = repos.find(r => r.id === config.repository.id);
+                if (repo?.defaultBranch) {
+                    defaultBranch = repo.defaultBranch.replace('refs/heads/', '');
+                }
+            } catch (error) {
+                // Use default
+            }
+        }
+
+        return {
+            repositoryId: config.repository.id,
+            repositoryName: config.repository.name || 'unknown',
+            yamlPath: config.path,
+            defaultBranch: defaultBranch
+        };
+    }
 }

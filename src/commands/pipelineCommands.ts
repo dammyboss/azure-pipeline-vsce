@@ -9,6 +9,7 @@ import { LiveLogPanel } from '../webviews/liveLogPanel';
 import { RunPipelineModal } from '../webviews/runPipelineModal';
 import { RenamePipelineModal } from '../webviews/renamePipelineModal';
 import { PipelineRunsPanel } from '../webviews/pipelineRunsPanel';
+import { PipelineEditorPanel } from '../webviews/pipelineEditorPanel';
 
 /**
  * Pipeline command handlers
@@ -670,7 +671,7 @@ export class PipelineCommands {
     }
 
     /**
-     * Edit pipeline (opens YAML file in editor)
+     * Edit pipeline (opens YAML file in editor with save to repository functionality)
      */
     private async editPipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
         try {
@@ -681,32 +682,8 @@ export class PipelineCommands {
                 return;
             }
 
-            // Get the YAML content directly using pipeline ID
-            await vscode.window.withProgress(
-                {
-                    location: vscode.ProgressLocation.Notification,
-                    title: 'Loading pipeline YAML...',
-                    cancellable: false
-                },
-                async () => {
-                    const yaml = await this.client.getPipelineYaml(pipeline.id);
-
-                    // Open in VSCode editor with YAML language support
-                    const doc = await vscode.workspace.openTextDocument({
-                        content: yaml,
-                        language: 'yaml'
-                    });
-
-                    await vscode.window.showTextDocument(doc, {
-                        preview: false,
-                        viewColumn: vscode.ViewColumn.Active
-                    });
-
-                    vscode.window.showInformationMessage(
-                        'Note: This is a read-only view. To modify the pipeline, edit the YAML file in your repository.'
-                    );
-                }
-            );
+            // Open the pipeline editor panel
+            await PipelineEditorPanel.show(this.client, pipeline);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to edit pipeline: ${errorMessage}`);
