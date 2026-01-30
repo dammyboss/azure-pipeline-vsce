@@ -693,7 +693,7 @@ export class TaskAssistantPanel {
             container.classList.add('open');
 
             let html = \`
-                <button class="close-btn" onclick="closeTaskDetails()">&times;</button>
+                <button class="close-btn" id="closeTaskDetailsBtn">&times;</button>
                 <h2>\${task.friendlyName}</h2>
                 <p style="margin: 12px 0; font-size: 13px; color: var(--vscode-descriptionForeground);">
                     \${task.description}
@@ -779,6 +779,14 @@ export class TaskAssistantPanel {
 
             container.innerHTML = html;
 
+            // Add close button handler
+            const closeBtn = document.getElementById('closeTaskDetailsBtn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    document.getElementById('taskDetails').classList.remove('open');
+                });
+            }
+
             // Add form submit handler
             document.getElementById('taskForm').addEventListener('submit', (e) => {
                 e.preventDefault();
@@ -793,10 +801,6 @@ export class TaskAssistantPanel {
                     inputs
                 });
             });
-        }
-
-        function closeTaskDetails() {
-            document.getElementById('taskDetails').classList.remove('open');
         }
 
         function insertYaml(yaml) {
