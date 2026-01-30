@@ -1426,7 +1426,6 @@ export class PipelineEditorPanel {
         .validation-status.success {
             background: transparent;
             color: #ffffff;
-            border-bottom: 1px solid #ffffff;
         }
 
         .validation-status.error {
