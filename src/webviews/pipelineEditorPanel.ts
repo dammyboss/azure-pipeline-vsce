@@ -1501,6 +1501,29 @@ export class PipelineEditorPanel {
             font-weight: 400;
             font-size: 13px;
         }
+        .run-pipeline-modal .modal-radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .run-pipeline-modal .modal-radio-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .run-pipeline-modal .modal-radio-item input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--vscode-button-background);
+        }
+        .run-pipeline-modal .modal-radio-item label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: 400;
+            font-size: 13px;
+        }
         .run-pipeline-modal .modal-variable-list {
             display: flex;
             flex-direction: column;
@@ -1721,10 +1744,17 @@ export class PipelineEditorPanel {
                 <div class="modal-section">
                     <div class="modal-section-title">Pipeline version</div>
                     <div class="modal-form-group">
-                        <label class="modal-label">Select pipeline version by branch/tag</label>
+                        <label class="modal-label">
+                            Select pipeline version by branch/tag
+                            <span class="modal-label-description">Select the pipeline to run by branch, commit, or tag</span>
+                        </label>
                         <select class="modal-input" id="runBranchSelect">
                             <option value="${defaultBranch}">${defaultBranch}</option>
                         </select>
+                    </div>
+                    <div class="modal-form-group">
+                        <label class="modal-label">Commit</label>
+                        <input type="text" class="modal-input" id="runCommitInput" placeholder="Leave empty to use latest commit">
                     </div>
                 </div>
 
@@ -1760,6 +1790,17 @@ export class PipelineEditorPanel {
                         Run all stages as configured
                     </div>
 
+                    <!-- Resources Section -->
+                    <div class="modal-expandable-section">
+                        <div class="modal-expandable-header" onclick="this.closest('.modal-expandable-section').classList.toggle('expanded')">
+                            <div class="modal-expandable-title">Resources</div>
+                            <div class="modal-expandable-arrow">▶</div>
+                        </div>
+                        <div class="modal-expandable-content">
+                            <div class="modal-info-text">1 repository, 0 build runs, 0 container images, 0 package runs</div>
+                        </div>
+                    </div>
+
                     <!-- Variables Section -->
                     <div id="runVariablesExpandable" class="modal-expandable-section" style="display: none;">
                         <div class="modal-expandable-header" onclick="document.getElementById('runVariablesExpandable').classList.toggle('expanded')">
@@ -1773,6 +1814,13 @@ export class PipelineEditorPanel {
 
                     <div id="runNoVariablesText" class="modal-info-text" style="display: none;">
                         This pipeline has no defined variables
+                    </div>
+                </div>
+
+                <div class="modal-form-group" style="margin-top: 24px;">
+                    <div class="modal-checkbox-item">
+                        <input type="checkbox" id="runEnableDiagnostics">
+                        <label for="runEnableDiagnostics">Enable system diagnostics</label>
                     </div>
                 </div>
             </div>
@@ -2020,36 +2068,74 @@ export class PipelineEditorPanel {
                     const paramId = 'run-param-' + param.name;
                     const displayName = param.displayName || param.name;
 
+                    // Boolean type - render as checkbox
                     if (param.type === 'boolean') {
                         const isChecked = param.default === true || param.default === 'true';
                         return \`
                             <div class="modal-form-group">
-                                <div class="modal-checkbox-item">
+                                <div class="modal-checkbox-item" style="padding: 8px 0;">
                                     <input type="checkbox" id="\${paramId}" \${isChecked ? 'checked' : ''}>
-                                    <label for="\${paramId}">\${displayName}</label>
+                                    <label for="\${paramId}" style="font-weight: 500;">\${displayName}</label>
                                 </div>
                             </div>
                         \`;
                     }
 
+                    // String with values - render based on number of options
+                    // 3 or fewer values: radio buttons, 4+ values: dropdown
                     if (param.values && param.values.length > 0) {
+                        if (param.values.length <= 3) {
+                            // Radio buttons for small number of options
+                            return \`
+                                <div class="modal-form-group">
+                                    <label class="modal-label">\${displayName}</label>
+                                    <div class="modal-radio-group" data-param-name="\${param.name}">
+                                        \${param.values.map((val, i) => \`
+                                            <div class="modal-radio-item">
+                                                <input type="radio"
+                                                       name="run-param-\${param.name}"
+                                                       id="\${paramId}-\${i}"
+                                                       value="\${val}"
+                                                       \${val === param.default ? 'checked' : ''}>
+                                                <label for="\${paramId}-\${i}">\${val}</label>
+                                            </div>
+                                        \`).join('')}
+                                    </div>
+                                </div>
+                            \`;
+                        } else {
+                            // Dropdown for larger number of options
+                            return \`
+                                <div class="modal-form-group">
+                                    <label class="modal-label">\${displayName}</label>
+                                    <select class="modal-input" id="\${paramId}">
+                                        \${param.values.map(val => \`
+                                            <option value="\${val}" \${val === param.default ? 'selected' : ''}>\${val}</option>
+                                        \`).join('')}
+                                    </select>
+                                </div>
+                            \`;
+                        }
+                    }
+
+                    // Number type - render as number input
+                    if (param.type === 'number') {
                         return \`
                             <div class="modal-form-group">
                                 <label class="modal-label">\${displayName}</label>
-                                <select class="modal-input" id="\${paramId}">
-                                    \${param.values.map(val => \`
-                                        <option value="\${val}" \${val === param.default ? 'selected' : ''}>\${val}</option>
-                                    \`).join('')}
-                                </select>
+                                <input type="number" class="modal-input" id="\${paramId}"
+                                       value="\${param.default !== undefined ? param.default : ''}"
+                                       placeholder="Enter number">
                             </div>
                         \`;
                     }
 
+                    // Default - render as text input
                     return \`
                         <div class="modal-form-group">
                             <label class="modal-label">\${displayName}</label>
                             <input type="text" class="modal-input" id="\${paramId}"
-                                   value="\${param.default || ''}"
+                                   value="\${param.default !== undefined ? param.default : ''}"
                                    placeholder="Enter value">
                         </div>
                     \`;
@@ -2064,12 +2150,33 @@ export class PipelineEditorPanel {
             const stagesContainer = document.getElementById('runStagesContainer');
             const noStagesText = document.getElementById('runNoStagesText');
             if (data.stages && data.stages.length > 0) {
-                stagesContainer.innerHTML = data.stages.map(stage => \`
+                let stagesHtml = \`
+                    <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-bottom: 12px;">
+                        Deselect stages you want to skip for this run
+                    </div>
+                    <div class="modal-checkbox-item" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--vscode-panel-border);">
+                        <input type="checkbox" id="run-stage-all" checked onchange="toggleAllRunStages(this)">
+                        <label for="run-stage-all" style="font-weight: 600;">Run all stages</label>
+                    </div>
+                \`;
+                stagesHtml += data.stages.map((stage, index) => \`
                     <div class="modal-checkbox-item">
-                        <input type="checkbox" id="run-stage-\${stage.name}" value="\${stage.name}" checked>
-                        <label for="run-stage-\${stage.name}">\${stage.displayName || stage.name}</label>
+                        <input type="checkbox" class="run-stage-checkbox" id="run-stage-\${index}" value="\${stage.name}" checked onchange="updateRunAllCheckbox()">
+                        <label for="run-stage-\${index}">
+                            <div>\${stage.name}</div>
+                            \${stage.dependsOn && stage.dependsOn.length > 0 ? \`
+                                <div style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 2px;">
+                                    Depends on: \${stage.dependsOn.join(', ')}
+                                </div>
+                            \` : \`
+                                <div style="font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 2px;">
+                                    No dependencies
+                                </div>
+                            \`}
+                        </label>
                     </div>
                 \`).join('');
+                stagesContainer.innerHTML = stagesHtml;
                 stagesExpandable.style.display = 'block';
                 noStagesText.style.display = 'none';
             } else {
@@ -2100,6 +2207,22 @@ export class PipelineEditorPanel {
             runPipelineModal.classList.add('show');
         }
 
+        function toggleAllRunStages(checkbox) {
+            const stageCheckboxes = document.querySelectorAll('.run-stage-checkbox');
+            stageCheckboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+        }
+
+        function updateRunAllCheckbox() {
+            const allCheckbox = document.getElementById('run-stage-all');
+            const stageCheckboxes = document.querySelectorAll('.run-stage-checkbox');
+            const allChecked = Array.from(stageCheckboxes).every(cb => cb.checked);
+            if (allCheckbox) {
+                allCheckbox.checked = allChecked;
+            }
+        }
+
         function closeRunPipelineModal() {
             runPipelineModal.classList.remove('show');
         }
@@ -2110,42 +2233,52 @@ export class PipelineEditorPanel {
 
         runModalRunBtn.addEventListener('click', () => {
             const branch = runBranchSelect.value;
+            const commit = document.getElementById('runCommitInput')?.value.trim();
 
-            // Collect variables
-            const variables = {};
-            document.querySelectorAll('[id^="run-var-"]').forEach(input => {
-                const varName = input.getAttribute('data-var-name');
-                if (varName) {
-                    variables[varName] = input.value;
+            // Collect selected stages
+            const stagesToRun = [];
+            document.querySelectorAll('.run-stage-checkbox:checked').forEach(checkbox => {
+                stagesToRun.push(checkbox.value);
+            });
+
+            // Collect runtime parameters (template parameters)
+            const templateParameters = {};
+
+            // Handle checkboxes, text inputs, number inputs, and select dropdowns
+            document.querySelectorAll('[id^="run-param-"]:not([type="radio"])').forEach(input => {
+                const key = input.id.replace('run-param-', '');
+                if (input.type === 'checkbox') {
+                    templateParameters[key] = input.checked.toString();
+                } else if (input.tagName === 'SELECT') {
+                    templateParameters[key] = input.value;
+                } else if (input.value !== '' && input.value !== undefined) {
+                    templateParameters[key] = input.value;
                 }
             });
 
-            // Collect runtime parameters
-            const runtimeParameters = {};
-            if (runPipelineData.runtimeParameters) {
-                runPipelineData.runtimeParameters.forEach(param => {
-                    const paramId = 'run-param-' + param.name;
-                    const element = document.getElementById(paramId);
-                    if (element) {
-                        if (param.type === 'boolean') {
-                            runtimeParameters[param.name] = element.checked;
-                        } else {
-                            runtimeParameters[param.name] = element.value;
-                        }
-                    }
-                });
-            }
+            // Handle radio buttons (string parameters with few values)
+            document.querySelectorAll('.modal-radio-group').forEach(group => {
+                const paramName = group.dataset.paramName;
+                const checkedRadio = group.querySelector('input[type="radio"]:checked');
+                if (paramName && checkedRadio) {
+                    templateParameters[paramName] = checkedRadio.value;
+                }
+            });
 
-            // Collect stages to skip (unchecked stages)
-            const stagesToSkip = [];
-            if (runPipelineData.stages && runPipelineData.stages.length > 0) {
-                runPipelineData.stages.forEach(stage => {
-                    const checkbox = document.getElementById('run-stage-' + stage.name);
-                    if (checkbox && !checkbox.checked) {
-                        stagesToSkip.push(stage.name);
-                    }
-                });
-            }
+            // Collect variables (legacy pipeline variables)
+            const variables = {};
+            document.querySelectorAll('[id^="run-var-"]').forEach(input => {
+                const key = input.id.replace('run-var-', '');
+                if (input.value) {
+                    variables[key] = input.value;
+                }
+            });
+
+            // Merge template parameters with variables for the API call
+            const allVariables = { ...variables, ...templateParameters };
+
+            const allStages = runPipelineData?.stages ? runPipelineData.stages.map(s => s.name) : [];
+            const stagesToSkip = allStages.filter(s => !stagesToRun.includes(s));
 
             runModalRunBtn.disabled = true;
             runModalRunBtn.innerHTML = '<span class="spinner"></span> Running...';
@@ -2154,9 +2287,9 @@ export class PipelineEditorPanel {
                 command: 'submitRunPipeline',
                 data: {
                     branch: branch,
-                    variables: variables,
-                    stagesToSkip: stagesToSkip,
-                    runtimeParameters: runtimeParameters
+                    commit: commit || undefined,
+                    variables: Object.keys(allVariables).length > 0 ? allVariables : undefined,
+                    stagesToSkip: stagesToSkip.length > 0 ? stagesToSkip : undefined
                 }
             });
         });
