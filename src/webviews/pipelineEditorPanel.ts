@@ -1868,9 +1868,9 @@ export class PipelineEditorPanel {
             position: absolute;
             top: 2%;
             right: 1%;
-            bottom: 8%;
             width: 550px;
             max-width: 85vw;
+            max-height: calc(100vh - 4% - 40px);
             background: var(--vscode-editor-background);
             border: 1px solid var(--vscode-panel-border);
             border-radius: 8px;
@@ -2097,7 +2097,6 @@ export class PipelineEditorPanel {
             display: flex;
             flex-direction: column;
             height: 100%;
-            overflow-y: auto;
         }
         .variable-form-header {
             display: flex;
