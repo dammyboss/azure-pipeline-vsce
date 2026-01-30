@@ -1264,7 +1264,7 @@ export class PipelineEditorPanel {
         .validation-panel {
             padding: 12px 16px;
             background: var(--vscode-editorWidget-background, #252526);
-            border-bottom: 1px solid var(--vscode-panel-border, #454545);
+            border-bottom: 1px solid #ffffff;
             display: none;
         }
 
@@ -1273,8 +1273,8 @@ export class PipelineEditorPanel {
         }
 
         .validation-panel.success {
-            background: rgba(55, 148, 255, 0.1);
-            border-left: 3px solid var(--vscode-notificationsInfoIcon-foreground, #3794ff);
+            background: transparent;
+            border-left: none;
         }
 
         .validation-panel.error {
@@ -1293,8 +1293,9 @@ export class PipelineEditorPanel {
             display: flex;
             align-items: center;
             gap: 8px;
-            font-weight: 600;
+            font-weight: 400;
             font-size: 13px;
+            color: #ffffff;
         }
 
         .validation-close {
@@ -1314,6 +1315,7 @@ export class PipelineEditorPanel {
             font-size: 12px;
             white-space: pre-wrap;
             word-break: break-word;
+            color: #ffffff;
         }
 
         /* Slideout Modal Overlay */
@@ -2774,9 +2776,9 @@ export class PipelineEditorPanel {
             validationPanel.classList.add('visible');
             validationPanel.classList.remove('success', 'error');
             validationPanel.classList.add(success ? 'success' : 'error');
-            validationTitle.textContent = success ? 'Validation Successful' : 'Validation Failed';
+            validationTitle.textContent = success ? 'Validation' : 'Validation Failed';
             validationIcon.innerHTML = success
-                ? '<svg width="16" height="16" viewBox="0 0 16 16" fill="#3794ff"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>'
+                ? '<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#107c10"/><path d="M15.78 5.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L4.22 10.28a.75.75 0 011.06-1.06L8 11.94l6.72-6.72a.75.75 0 011.06 0z" fill="#ffffff"/></svg>'
                 : '<svg width="16" height="16" viewBox="0 0 16 16" fill="#f14c4c"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM0 8a8 8 0 1116 0A8 8 0 010 8zm8-3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 5zm0 8a1 1 0 100-2 1 1 0 000 2z"/></svg>';
             validationMessage.textContent = message;
         }
