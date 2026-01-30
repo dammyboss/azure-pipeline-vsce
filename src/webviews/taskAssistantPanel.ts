@@ -237,11 +237,19 @@ export class TaskAssistantPanel {
      * Get webview HTML content
      */
     private getWebviewContent(): string {
+        const nonce = this.getNonce();
+
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'none';
+        img-src ${this._panel.webview.cspSource} https://*.visualstudio.com https://*.azure.com https://dev.azure.com data:;
+        style-src ${this._panel.webview.cspSource} 'unsafe-inline';
+        script-src 'nonce-${nonce}';
+    ">
     <title>Task Assistant</title>
     <style>
         * {
@@ -513,7 +521,7 @@ export class TaskAssistantPanel {
         <!-- Task details and configuration form will be rendered here -->
     </div>
 
-    <script>
+    <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
 
         let allTasks = [];
@@ -730,6 +738,18 @@ export class TaskAssistantPanel {
     </script>
 </body>
 </html>`;
+    }
+
+    /**
+     * Generate a nonce for CSP
+     */
+    private getNonce(): string {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < 32; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
     }
 
     /**

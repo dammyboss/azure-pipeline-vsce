@@ -36,19 +36,48 @@ export class TaskService {
         // The API response should already include iconUrl in the task definition
         // If not present, generate it as fallback
         const config = this.client.getConfig();
-        tasks.forEach(task => {
-            // Use the iconUrl from API response if available
-            if (!task.iconUrl && config.organizationUrl && task.id && task.version) {
-                // Fallback: Generate icon URL based on task ID and version
-                // Format: {org}/_apis/distributedtask/tasks/{taskId}/{version}/icon
-                task.iconUrl = `${config.organizationUrl}/_apis/distributedtask/tasks/${task.id}/${task.version.Major}.${task.version.Minor}.${task.version.Patch}/icon`;
+        let iconUrlCount = 0;
+        let linksIconCount = 0;
+        let generatedCount = 0;
+        let dataUrlCount = 0;
+
+        // Process icon URLs and convert to authenticated data URLs
+        for (const task of tasks) {
+            let iconUrl: string | undefined;
+
+            // Priority 1: Check if iconUrl came from API
+            if (task.iconUrl) {
+                iconUrl = task.iconUrl;
+                iconUrlCount++;
+                console.log(`Task ${task.name} has iconUrl from API: ${iconUrl}`);
             }
 
-            // Also check _links.icon.href if iconUrl is not directly available
-            if (!task.iconUrl && task._links?.icon?.href) {
-                task.iconUrl = task._links.icon.href;
+            // Priority 2: Check _links.icon.href if iconUrl is not directly available
+            if (!iconUrl && task._links?.icon?.href) {
+                iconUrl = task._links.icon.href;
+                linksIconCount++;
+                console.log(`Task ${task.name} using _links.icon.href: ${iconUrl}`);
             }
-        });
+
+            // Priority 3: Generate icon URL based on task ID and version
+            if (!iconUrl && config.organizationUrl && task.id && task.version) {
+                // Format: {org}/_apis/distributedtask/tasks/{taskId}/{version}/icon
+                iconUrl = `${config.organizationUrl}/_apis/distributedtask/tasks/${task.id}/${task.version.Major}.${task.version.Minor}.${task.version.Patch}/icon`;
+                generatedCount++;
+                console.log(`Task ${task.name} generated iconUrl: ${iconUrl}`);
+            }
+
+            // Fetch the icon as an authenticated data URL
+            if (iconUrl) {
+                const dataUrl = await this.client.getTaskIconAsDataUrl(iconUrl);
+                if (dataUrl) {
+                    task.iconUrl = dataUrl;
+                    dataUrlCount++;
+                }
+            }
+        }
+
+        console.log(`Icon URL stats - From API: ${iconUrlCount}, From _links: ${linksIconCount}, Generated: ${generatedCount}, Successfully converted to data URLs: ${dataUrlCount}, Total tasks: ${tasks.length}`);
 
         // Update cache
         this.taskCache = {

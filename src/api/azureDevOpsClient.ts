@@ -1363,4 +1363,24 @@ export class AzureDevOpsClient {
             return [];
         }
     }
+
+    /**
+     * Fetch task icon and convert to base64 data URL
+     * This is needed because icon URLs require authentication
+     */
+    async getTaskIconAsDataUrl(iconUrl: string): Promise<string | null> {
+        try {
+            const response = await this.axiosInstance.get(iconUrl, {
+                responseType: 'arraybuffer'
+            });
+
+            // Convert to base64
+            const base64 = Buffer.from(response.data, 'binary').toString('base64');
+            const contentType = response.headers['content-type'] || 'image/png';
+            return `data:${contentType};base64,${base64}`;
+        } catch (error: any) {
+            console.warn(`Failed to fetch icon from ${iconUrl}:`, error.message);
+            return null;
+        }
+    }
 }
