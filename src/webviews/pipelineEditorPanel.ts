@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { Pipeline } from '../models/types';
 
@@ -30,9 +31,13 @@ export class PipelineEditorPanel {
         this._client = client;
         this._pipeline = pipeline;
 
-        // Set up webview
+        // Set up webview with Monaco Editor resources
+        const extensionUri = vscode.extensions.getExtension('Damilola.azure-devops-pipelines')?.extensionUri
+            || vscode.Uri.file(path.join(__dirname, '..', '..'));
+        const monacoPath = vscode.Uri.file(path.join(extensionUri.fsPath, 'node_modules', 'monaco-editor', 'min'));
         this._panel.webview.options = {
-            enableScripts: true
+            enableScripts: true,
+            localResourceRoots: [monacoPath]
         };
 
         // Handle messages from webview
@@ -110,14 +115,19 @@ export class PipelineEditorPanel {
             return;
         }
 
-        // Create new panel
+        // Create new panel with Monaco Editor local resources
+        const extensionUri = vscode.extensions.getExtension('Damilola.azure-devops-pipelines')?.extensionUri
+            || vscode.Uri.file(path.join(__dirname, '..', '..'));
+        const monacoPath = vscode.Uri.file(path.join(extensionUri.fsPath, 'node_modules', 'monaco-editor', 'min'));
+
         const panel = vscode.window.createWebviewPanel(
             'pipelineEditor',
             `Edit: ${pipeline.name}`,
             column,
             {
                 enableScripts: true,
-                retainContextWhenHidden: true
+                retainContextWhenHidden: true,
+                localResourceRoots: [monacoPath]
             }
         );
 
@@ -147,8 +157,15 @@ export class PipelineEditorPanel {
             // Update panel title
             this._panel.title = `Edit: ${this._pipeline.name}`;
 
+            // Generate Monaco Editor URI for webview
+            const extensionUri = vscode.extensions.getExtension('Damilola.azure-devops-pipelines')?.extensionUri
+                || vscode.Uri.file(path.join(__dirname, '..', '..'));
+            const monacoBase = this._panel.webview.asWebviewUri(
+                vscode.Uri.file(path.join(extensionUri.fsPath, 'node_modules', 'monaco-editor', 'min'))
+            );
+
             // Send content to webview
-            this._panel.webview.html = this.getWebviewContent(yaml);
+            this._panel.webview.html = this.getWebviewContent(yaml, monacoBase.toString());
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to load pipeline YAML: ${errorMessage}`);
@@ -582,7 +599,7 @@ export class PipelineEditorPanel {
     /**
      * Get webview content
      */
-    private getWebviewContent(yaml: string): string {
+    private getWebviewContent(yaml: string, monacoBaseUrl?: string): string {
         const escapedYaml = yaml
             .replace(/\\/g, '\\\\')
             .replace(/`/g, '\\`')
@@ -1128,21 +1145,9 @@ export class PipelineEditorPanel {
         .editor {
             width: 100%;
             height: 100%;
-            padding: 16px;
             background: var(--vscode-editor-background, #1e1e1e);
-            color: var(--vscode-editor-foreground, #d4d4d4);
             border: none;
-            resize: none;
-            font-family: var(--vscode-editor-font-family, 'Cascadia Code', 'Fira Code', Consolas, monospace);
-            font-size: var(--vscode-editor-font-size, 14px);
-            line-height: 1.5;
-            tab-size: 2;
-            white-space: pre;
-            overflow: auto;
-        }
-
-        .editor:focus {
-            outline: none;
+            overflow: hidden;
         }
 
         .status-bar {
@@ -2274,7 +2279,7 @@ export class PipelineEditorPanel {
             gap: 12px;
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <script src="${monacoBaseUrl}/vs/loader.js"></script>
 </head>
 <body>
     <div class="toolbar">
@@ -2727,16 +2732,8 @@ export class PipelineEditorPanel {
         let monacoEditor = null;
 
         // Initialize Monaco Editor
-        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+        require.config({ paths: { vs: '${monacoBaseUrl}/vs' } });
         require(['vs/editor/editor.main'], function () {
-            // Configure YAML language with Azure Pipelines schema
-            monaco.languages.yaml.yamlDefaults.setDiagnosticsOptions({
-                validate: true,
-                enableSchemaRequest: true,
-                hover: true,
-                completion: true
-            });
-
             monacoEditor = monaco.editor.create(editor, {
                 value: \`${escapedYaml}\`,
                 language: 'yaml',
