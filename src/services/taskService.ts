@@ -33,13 +33,20 @@ export class TaskService {
         // Fetch fresh tasks
         const tasks = await this.client.getTaskDefinitions();
 
-        // Add icon URLs to tasks
+        // The API response should already include iconUrl in the task definition
+        // If not present, generate it as fallback
         const config = this.client.getConfig();
         tasks.forEach(task => {
-            // Generate icon URL based on task ID and version
-            // Azure DevOps stores task icons at: {org}/_apis/distributedtask/tasks/{taskId}/{version}/icon
-            if (config.organizationUrl && task.id && task.version) {
+            // Use the iconUrl from API response if available
+            if (!task.iconUrl && config.organizationUrl && task.id && task.version) {
+                // Fallback: Generate icon URL based on task ID and version
+                // Format: {org}/_apis/distributedtask/tasks/{taskId}/{version}/icon
                 task.iconUrl = `${config.organizationUrl}/_apis/distributedtask/tasks/${task.id}/${task.version.Major}.${task.version.Minor}.${task.version.Patch}/icon`;
+            }
+
+            // Also check _links.icon.href if iconUrl is not directly available
+            if (!task.iconUrl && task._links?.icon?.href) {
+                task.iconUrl = task._links.icon.href;
             }
         });
 
