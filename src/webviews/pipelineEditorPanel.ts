@@ -1866,12 +1866,11 @@ export class PipelineEditorPanel {
         }
         .variables-modal .variables-panel {
             position: absolute;
-            top: 10%;
-            right: 5%;
-            bottom: 10%;
-            width: 700px;
+            top: 0;
+            right: 3%;
+            bottom: 3%;
+            width: 550px;
             max-width: 85vw;
-            max-height: 80vh;
             background: var(--vscode-editor-background);
             border: 1px solid var(--vscode-panel-border);
             border-radius: 8px;
@@ -2037,25 +2036,57 @@ export class PipelineEditorPanel {
             display: flex;
             gap: 12px;
         }
+        .footer-buttons .modal-button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 400;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .footer-buttons .modal-button.secondary {
+            background: #3c3c3c;
+            color: #ffffff;
+        }
+        .footer-buttons .modal-button.secondary:hover {
+            background: #505050;
+        }
+        .footer-buttons .modal-button.primary {
+            background: #0078d4;
+            color: white;
+        }
+        .footer-buttons .modal-button.primary:hover {
+            background: #106ebe;
+        }
+        .footer-buttons .modal-button:disabled {
+            background: #3c3c3c;
+            color: #666666;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
 
         /* Variable Form */
         .variable-form-container {
             display: flex;
             flex-direction: column;
             height: 100%;
-            padding: 24px 32px;
             overflow-y: auto;
         }
         .variable-form-header {
             display: flex;
             align-items: center;
             gap: 12px;
-            margin-bottom: 24px;
+            padding: 24px 32px;
+            border-bottom: 1px solid var(--vscode-panel-border);
         }
         .variable-form-header h3 {
-            font-size: 18px;
-            font-weight: 600;
+            font-size: 20px;
+            font-weight: 400;
             margin: 0;
+        }
+        .variable-form {
+            padding: 24px 32px;
         }
         .back-button {
             background: none;
@@ -2075,13 +2106,51 @@ export class PipelineEditorPanel {
         .variable-form {
             max-width: 600px;
         }
+        .variable-form .modal-form-group {
+            margin-bottom: 20px;
+        }
         .variable-form-info {
             margin-top: 32px;
-            padding: 16px;
-            background: var(--vscode-editor-inactiveSelectionBackground);
-            border-radius: 4px;
+            padding: 0;
+            background: transparent;
             font-size: 13px;
             line-height: 1.6;
+            color: var(--vscode-descriptionForeground);
+        }
+        .variables-modal .modal-checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .variables-modal .modal-checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            background: transparent;
+            border: 1px solid var(--vscode-input-border);
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            border-radius: 3px;
+        }
+        .variables-modal .modal-checkbox-item input[type="checkbox"]:checked {
+            background: var(--vscode-button-background);
+            border-color: var(--vscode-button-background);
+        }
+        .variables-modal .modal-checkbox-item input[type="checkbox"]:checked::after {
+            content: '✓';
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        .variables-modal .modal-checkbox-item label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: 400;
+            font-size: 13px;
         }
         .info-section {
             margin-bottom: 12px;
@@ -2410,7 +2479,7 @@ export class PipelineEditorPanel {
     <div class="variables-modal" id="variablesModal">
         <div class="modal-overlay" id="variablesModalOverlay"></div>
         <div class="modal-panel variables-panel">
-            <div class="modal-header">
+            <div class="modal-header" id="variablesMainHeader">
                 <h2 class="modal-title">Variables</h2>
                 <button class="modal-close" id="variablesModalCloseBtn">×</button>
             </div>
@@ -2439,9 +2508,9 @@ export class PipelineEditorPanel {
 
                 <!-- Footer -->
                 <div class="variables-footer">
-                    <a href="https://docs.microsoft.com/azure/devops/pipelines/process/variables" class="learn-link" id="learnAboutVariablesLink" target="_blank">Learn about variables</a>
+                    <a href="https://go.microsoft.com/fwlink/?linkid=2098718" class="learn-link" id="learnAboutVariablesLink" target="_blank">Learn about variables</a>
                     <div class="footer-buttons">
-                        <button class="modal-button secondary" id="closeVariablesBtn">Close</button>
+                        <button class="modal-button secondary" id="closeVariablesBtn">Cancel</button>
                         <button class="modal-button primary" id="saveVariablesBtn" disabled>Save</button>
                     </div>
                 </div>
@@ -2510,7 +2579,7 @@ export class PipelineEditorPanel {
                     </div>
 
                     <div class="variable-form-footer">
-                        <a href="https://docs.microsoft.com/azure/devops/pipelines/process/variables" class="learn-link" id="learnAboutVariablesLink2" target="_blank">Learn about variables</a>
+                        <a href="https://go.microsoft.com/fwlink/?linkid=2098718" class="learn-link" id="learnAboutVariablesLink2" target="_blank">Learn about variables</a>
                         <div class="button-group">
                             <button class="modal-button secondary" id="cancelVariableBtn">Cancel</button>
                             <button class="modal-button primary" id="saveVariableBtn">OK</button>
@@ -3115,6 +3184,7 @@ export class PipelineEditorPanel {
         const variablesModal = document.getElementById('variablesModal');
         const variablesModalOverlay = document.getElementById('variablesModalOverlay');
         const variablesModalCloseBtn = document.getElementById('variablesModalCloseBtn');
+        const variablesMainHeader = document.getElementById('variablesMainHeader');
         const variablesMainView = document.getElementById('variablesMainView');
         const variablesSearchInput = document.getElementById('variablesSearchInput');
         const addVariableBtn = document.getElementById('addVariableBtn');
@@ -3148,11 +3218,13 @@ export class PipelineEditorPanel {
         }
 
         function showMainView() {
+            variablesMainHeader.style.display = 'flex';
             variablesMainView.style.display = 'flex';
             variableFormContainer.style.display = 'none';
         }
 
         function showVariableForm(variableName = null) {
+            variablesMainHeader.style.display = 'none';
             variablesMainView.style.display = 'none';
             variableFormContainer.style.display = 'flex';
 
@@ -3167,6 +3239,7 @@ export class PipelineEditorPanel {
                     variableOverrideCheckbox.checked = variable.allowOverride;
                     variableNameInput.disabled = true; // Can't change variable name when editing
                     variableFormTitle.textContent = 'Edit variable';
+                    saveVariableBtn.disabled = false; // Enable save button for editing
                 }
             } else {
                 // Add mode
@@ -3174,6 +3247,7 @@ export class PipelineEditorPanel {
                 resetVariableForm();
                 variableNameInput.disabled = false;
                 variableFormTitle.textContent = 'New variable';
+                saveVariableBtn.disabled = true; // Disable save button initially
             }
         }
 
@@ -3294,6 +3368,12 @@ export class PipelineEditorPanel {
                 variableValueInput.type = 'text';
                 variableValueInput.placeholder = 'Enter variable value';
             }
+        });
+
+        // Enable/disable OK button based on name input
+        variableNameInput.addEventListener('input', () => {
+            const hasName = variableNameInput.value.trim().length > 0;
+            saveVariableBtn.disabled = !hasName;
         });
 
         // Handle keyboard shortcut for save (Ctrl+S / Cmd+S)
