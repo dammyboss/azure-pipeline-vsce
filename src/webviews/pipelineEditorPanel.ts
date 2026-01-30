@@ -1406,10 +1406,10 @@ export class PipelineEditorPanel {
 
         .modal-section-label {
             font-size: 12px;
-            font-weight: 600;
-            color: var(--vscode-foreground, #cccccc);
+            font-weight: 400;
+            color: #ffffff;
             margin-bottom: 8px;
-            text-transform: uppercase;
+            text-transform: none;
             letter-spacing: 0.5px;
         }
 
@@ -1418,14 +1418,15 @@ export class PipelineEditorPanel {
             align-items: center;
             gap: 8px;
             padding: 12px 14px;
-            background: var(--vscode-input-background, #3c3c3c);
+            background: transparent;
             border-radius: 6px;
             font-size: 13px;
         }
 
         .validation-status.success {
-            background: rgba(56, 138, 52, 0.15);
-            color: #73c991;
+            background: transparent;
+            color: #ffffff;
+            border-bottom: 1px solid #ffffff;
         }
 
         .validation-status.error {
@@ -2834,7 +2835,7 @@ export class PipelineEditorPanel {
 
             if (valid) {
                 modalValidationStatus.className = 'validation-status success';
-                modalValidationStatus.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg><span>' + message + '</span>';
+                modalValidationStatus.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#107c10"/><path d="M15.78 5.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L4.22 10.28a.75.75 0 011.06-1.06L8 11.94l6.72-6.72a.75.75 0 011.06 0z" fill="#ffffff"/></svg><span>' + message + '</span>';
             } else {
                 modalValidationStatus.className = 'validation-status error';
                 modalValidationStatus.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM0 8a8 8 0 1116 0A8 8 0 010 8zm8-3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 5zm0 8a1 1 0 100-2 1 1 0 000 2z"/></svg><span>' + message + '</span>';
