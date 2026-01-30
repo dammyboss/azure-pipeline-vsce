@@ -819,7 +819,7 @@ export class AzureDevOpsClient {
     async getPipelineVariables(pipelineId: number): Promise<Record<string, Variable>> {
         const response = await this.axiosInstance.get(
             `${this.organizationUrl}/${this.projectName}/_apis/build/definitions/${pipelineId}`,
-            { params: { 'api-version': '7.1-preview.1' } }
+            { params: { 'api-version': '7.1-preview.7' } }
         );
         return response.data.variables || {};
     }

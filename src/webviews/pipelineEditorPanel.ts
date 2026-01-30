@@ -63,6 +63,18 @@ export class PipelineEditorPanel {
                     case 'submitRunPipeline':
                         await this.handleRunPipeline(message.data);
                         break;
+                    case 'openVariablesModal':
+                        this._panel.webview.postMessage({ command: 'openVariablesModal' });
+                        break;
+                    case 'loadVariables':
+                        await this.loadVariables();
+                        break;
+                    case 'saveVariable':
+                        await this.saveVariable(message.data);
+                        break;
+                    case 'deleteVariable':
+                        await this.deleteVariable(message.variableName);
+                        break;
                 }
             },
             null,
@@ -412,6 +424,81 @@ export class PipelineEditorPanel {
             return await this._client.getPipelineRuntimeParameters(this._pipeline.id);
         } catch (error) {
             return [];
+        }
+    }
+
+    /**
+     * Load pipeline variables and send to webview
+     */
+    private async loadVariables(): Promise<void> {
+        try {
+            const variablesData = await this._client.getPipelineVariables(this._pipeline.id);
+
+            // Convert variables object to array format for UI
+            const variables = Object.entries(variablesData).map(([name, variable]: [string, any]) => ({
+                name: name,
+                value: variable.value || '',
+                isSecret: variable.isSecret || false,
+                allowOverride: variable.allowOverride || false
+            }));
+
+            this._panel.webview.postMessage({
+                command: 'variablesLoaded',
+                variables: variables
+            });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to load variables: ${errorMessage}`);
+            this._panel.webview.postMessage({
+                command: 'variablesLoaded',
+                variables: []
+            });
+        }
+    }
+
+    /**
+     * Save a pipeline variable
+     */
+    private async saveVariable(data: { name: string; value: string; isSecret: boolean; allowOverride: boolean }): Promise<void> {
+        try {
+            await this._client.createOrUpdatePipelineVariable(
+                this._pipeline.id,
+                data.name,
+                data.value,
+                data.isSecret,
+                data.allowOverride
+            );
+
+            this._panel.webview.postMessage({
+                command: 'variableSaved'
+            });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to save variable: ${errorMessage}`);
+            this._panel.webview.postMessage({
+                command: 'variableSaveError',
+                message: errorMessage
+            });
+        }
+    }
+
+    /**
+     * Delete a pipeline variable
+     */
+    private async deleteVariable(variableName: string): Promise<void> {
+        try {
+            await this._client.deletePipelineVariable(this._pipeline.id, variableName);
+
+            this._panel.webview.postMessage({
+                command: 'variableDeleted'
+            });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to delete variable: ${errorMessage}`);
+            this._panel.webview.postMessage({
+                command: 'variableDeleteError',
+                message: errorMessage
+            });
         }
     }
 
@@ -1684,6 +1771,281 @@ export class PipelineEditorPanel {
             opacity: 0.5;
             cursor: not-allowed;
         }
+
+        /* Variables Modal Styles */
+        /* Variables Modal */
+        .variables-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 2000;
+        }
+        .variables-modal.show {
+            display: block;
+        }
+        .variables-modal .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.2s ease-in;
+        }
+        .variables-modal .variables-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 800px;
+            max-width: 90vw;
+            background: var(--vscode-editor-background);
+            border-left: 1px solid var(--vscode-panel-border);
+            display: flex;
+            flex-direction: column;
+            animation: slideInRight 0.3s ease-out;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+        }
+        .variables-modal .modal-header {
+            padding: 24px 32px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .variables-modal .modal-header h2 {
+            font-size: 24px;
+            font-weight: 400;
+            margin: 0;
+        }
+        .variables-modal .modal-close {
+            background: none;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 28px;
+            padding: 0;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            opacity: 0.6;
+            transition: opacity 0.2s, background 0.2s;
+        }
+        .variables-modal .modal-close:hover {
+            opacity: 1;
+            background: var(--vscode-toolbar-hoverBackground);
+        }
+
+        /* Variables Main View */
+        .variables-main-view {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        /* Search Container */
+        .variables-search-container {
+            padding: 24px 32px 16px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .variables-search-input-wrapper {
+            position: relative;
+            flex: 1;
+        }
+        .variables-search-input-wrapper .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.6;
+        }
+        .variables-search-input {
+            width: 100%;
+            padding: 8px 12px 8px 36px;
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            color: var(--vscode-input-foreground);
+            font-size: 14px;
+            border-radius: 4px;
+            outline: none;
+        }
+        .variables-search-input:focus {
+            border-color: var(--vscode-focusBorder);
+        }
+        .variables-search-input::placeholder {
+            color: var(--vscode-input-placeholderForeground);
+        }
+        .add-variable-btn {
+            background: var(--vscode-button-background);
+            border: none;
+            color: var(--vscode-button-foreground);
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .add-variable-btn:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+
+        /* Variables List View */
+        .variables-list-view {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 32px;
+        }
+        .variables-list {
+            border-top: 1px solid var(--vscode-panel-border);
+        }
+        .variable-row {
+            display: flex;
+            align-items: flex-start;
+            padding: 16px 12px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            cursor: pointer;
+            transition: background 0.15s ease;
+            gap: 12px;
+        }
+        .variable-row:hover {
+            background: var(--vscode-list-hoverBackground);
+        }
+        .variable-icon {
+            margin-top: 2px;
+            opacity: 0.7;
+            flex-shrink: 0;
+        }
+        .variable-content {
+            flex: 1;
+            min-width: 0;
+        }
+        .variable-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            margin: 0 0 4px 0;
+        }
+        .variable-value-display {
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+            word-break: break-all;
+        }
+        .variable-value-display.secret {
+            letter-spacing: 2px;
+        }
+
+        /* Variables Footer */
+        .variables-footer {
+            padding: 20px 32px;
+            border-top: 1px solid var(--vscode-panel-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--vscode-editor-background);
+        }
+        .learn-link {
+            color: var(--vscode-textLink-foreground);
+            text-decoration: none;
+            font-size: 13px;
+        }
+        .learn-link:hover {
+            text-decoration: underline;
+        }
+        .footer-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Variable Form */
+        .variable-form-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 24px 32px;
+            overflow-y: auto;
+        }
+        .variable-form-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .variable-form-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+        .back-button {
+            background: none;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s ease;
+        }
+        .back-button:hover {
+            background: var(--vscode-toolbar-hoverBackground);
+        }
+        .variable-form {
+            max-width: 600px;
+        }
+        .variable-form-info {
+            margin-top: 32px;
+            padding: 16px;
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .info-section {
+            margin-bottom: 12px;
+        }
+        .info-section:last-child {
+            margin-bottom: 0;
+        }
+        .info-section code {
+            background: var(--vscode-textCodeBlock-background);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: var(--vscode-editor-font-family);
+            font-size: 12px;
+        }
+        .code-examples {
+            margin-top: 12px;
+        }
+        .code-example {
+            margin-bottom: 8px;
+            padding-left: 16px;
+        }
+        .code-example:last-child {
+            margin-bottom: 0;
+        }
+        .variable-form-footer {
+            margin-top: auto;
+            padding-top: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .button-group {
+            display: flex;
+            gap: 12px;
+        }
     </style>
 </head>
 <body>
@@ -1964,6 +2326,121 @@ export class PipelineEditorPanel {
             <div class="modal-footer">
                 <button id="runModalCancelBtn" class="modal-button secondary">Cancel</button>
                 <button id="runModalRunBtn" class="modal-button primary">Run</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Variables Modal -->
+    <div class="variables-modal" id="variablesModal">
+        <div class="modal-overlay" id="variablesModalOverlay"></div>
+        <div class="modal-panel variables-panel">
+            <div class="modal-header">
+                <h2 class="modal-title">Variables</h2>
+                <button class="modal-close" id="variablesModalCloseBtn">×</button>
+            </div>
+
+            <!-- Main Variables View -->
+            <div class="variables-main-view" id="variablesMainView">
+                <!-- Search Bar with Add Button -->
+                <div class="variables-search-container">
+                    <div class="variables-search-input-wrapper">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path fill-rule="evenodd" d="M11.5 7a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zm-.82 4.74a6 6 0 111.06-1.06l3.04 3.04a.75.75 0 11-1.06 1.06l-3.04-3.04z"/>
+                        </svg>
+                        <input type="text" class="variables-search-input" id="variablesSearchInput" placeholder="Search variables">
+                    </div>
+                    <button class="add-variable-btn" id="addVariableBtn" title="Add variable">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Variables List -->
+                <div class="variables-list-view" id="variablesListView">
+                    <div class="variables-list" id="variablesList"></div>
+                </div>
+
+                <!-- Footer -->
+                <div class="variables-footer">
+                    <a href="https://docs.microsoft.com/azure/devops/pipelines/process/variables" class="learn-link" id="learnAboutVariablesLink" target="_blank">Learn about variables</a>
+                    <div class="footer-buttons">
+                        <button class="modal-button secondary" id="closeVariablesBtn">Close</button>
+                        <button class="modal-button primary" id="saveVariablesBtn" disabled>Save</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add/Edit Variable Form -->
+            <div class="variable-form-container" id="variableFormContainer" style="display: none;">
+                <div class="variable-form-header">
+                    <button class="back-button" id="backToListBtn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path fill-rule="evenodd" d="M7.78 12.53a.75.75 0 01-1.06 0L2.47 8.28a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 1.06L4.56 7.25h7.69a.75.75 0 010 1.5H4.56l3.22 3.22a.75.75 0 010 1.06z"/>
+                        </svg>
+                    </button>
+                    <h3 class="form-title" id="variableFormTitle">New variable</h3>
+                </div>
+
+                <div class="variable-form">
+                    <div class="modal-form-group">
+                        <label class="modal-label">Name</label>
+                        <input type="text" class="modal-input" id="variableNameInput" placeholder="Enter variable name">
+                    </div>
+
+                    <div class="modal-form-group">
+                        <label class="modal-label">Value</label>
+                        <input type="text" class="modal-input" id="variableValueInput" placeholder="Enter variable value">
+                    </div>
+
+                    <div class="modal-form-group">
+                        <div class="modal-checkbox-item">
+                            <input type="checkbox" id="variableSecretCheckbox">
+                            <label for="variableSecretCheckbox">Keep this value secret</label>
+                        </div>
+                    </div>
+
+                    <div class="modal-form-group">
+                        <div class="modal-checkbox-item">
+                            <input type="checkbox" id="variableOverrideCheckbox">
+                            <label for="variableOverrideCheckbox">Let users override this value when running this pipeline</label>
+                        </div>
+                    </div>
+
+                    <div class="variable-form-info">
+                        <div class="info-section">
+                            <strong>To reference a variable in YAML,</strong> prefix it with a dollar sign and enclose it in parentheses. For example: <code>$(variable-name)</code>
+                        </div>
+
+                        <div class="info-section">
+                            <strong>To use a variable in a script,</strong> use environment variable syntax. Replace <code>.</code> and space with <code>_</code>, capitalize the letters, and then use your platform's syntax for referencing an environment variable.
+                        </div>
+
+                        <div class="info-section">
+                            Examples:
+                        </div>
+
+                        <div class="code-examples">
+                            <div class="code-example">
+                                <strong>Batch script:</strong> <code>%VARIABLE_NAME%</code>
+                            </div>
+                            <div class="code-example">
+                                <strong>PowerShell script:</strong> <code>$\{env:VARIABLE_NAME}</code>
+                            </div>
+                            <div class="code-example">
+                                <strong>Bash script:</strong> <code>$(VARIABLE_NAME)</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="variable-form-footer">
+                        <a href="https://docs.microsoft.com/azure/devops/pipelines/process/variables" class="learn-link" id="learnAboutVariablesLink2" target="_blank">Learn about variables</a>
+                        <div class="button-group">
+                            <button class="modal-button secondary" id="cancelVariableBtn">Cancel</button>
+                            <button class="modal-button primary" id="saveVariableBtn">OK</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -2527,6 +3004,191 @@ export class PipelineEditorPanel {
             moreMenu.classList.remove('show');
         });
 
+        // Variables Modal
+        const variablesModal = document.getElementById('variablesModal');
+        const variablesModalOverlay = document.getElementById('variablesModalOverlay');
+        const variablesModalCloseBtn = document.getElementById('variablesModalCloseBtn');
+        const variablesMainView = document.getElementById('variablesMainView');
+        const variablesSearchInput = document.getElementById('variablesSearchInput');
+        const addVariableBtn = document.getElementById('addVariableBtn');
+        const variablesList = document.getElementById('variablesList');
+        const closeVariablesBtn = document.getElementById('closeVariablesBtn');
+        const saveVariablesBtn = document.getElementById('saveVariablesBtn');
+        const variableFormContainer = document.getElementById('variableFormContainer');
+        const backToListBtn = document.getElementById('backToListBtn');
+        const variableFormTitle = document.getElementById('variableFormTitle');
+        const variableNameInput = document.getElementById('variableNameInput');
+        const variableValueInput = document.getElementById('variableValueInput');
+        const variableSecretCheckbox = document.getElementById('variableSecretCheckbox');
+        const variableOverrideCheckbox = document.getElementById('variableOverrideCheckbox');
+        const saveVariableBtn = document.getElementById('saveVariableBtn');
+        const cancelVariableBtn = document.getElementById('cancelVariableBtn');
+
+        let currentVariables = [];
+        let editingVariableName = null;
+
+        function openVariablesModal() {
+            variablesModal.classList.add('show');
+            showMainView();
+            // Request variables from backend
+            vscode.postMessage({ command: 'loadVariables' });
+        }
+
+        function closeVariablesModal() {
+            variablesModal.classList.remove('show');
+            showMainView();
+            resetVariableForm();
+        }
+
+        function showMainView() {
+            variablesMainView.style.display = 'flex';
+            variableFormContainer.style.display = 'none';
+        }
+
+        function showVariableForm(variableName = null) {
+            variablesMainView.style.display = 'none';
+            variableFormContainer.style.display = 'flex';
+
+            if (variableName) {
+                // Edit mode
+                editingVariableName = variableName;
+                const variable = currentVariables.find(v => v.name === variableName);
+                if (variable) {
+                    variableNameInput.value = variable.name;
+                    variableValueInput.value = variable.isSecret ? '' : variable.value;
+                    variableSecretCheckbox.checked = variable.isSecret;
+                    variableOverrideCheckbox.checked = variable.allowOverride;
+                    variableNameInput.disabled = true; // Can't change variable name when editing
+                    variableFormTitle.textContent = 'Edit variable';
+                }
+            } else {
+                // Add mode
+                editingVariableName = null;
+                resetVariableForm();
+                variableNameInput.disabled = false;
+                variableFormTitle.textContent = 'New variable';
+            }
+        }
+
+        function resetVariableForm() {
+            variableNameInput.value = '';
+            variableValueInput.value = '';
+            variableSecretCheckbox.checked = false;
+            variableOverrideCheckbox.checked = false;
+            editingVariableName = null;
+        }
+
+        function renderVariablesList() {
+            variablesList.innerHTML = '';
+
+            if (currentVariables.length === 0) {
+                variablesList.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--vscode-descriptionForeground);">No variables defined. Click the + button to add one.</div>';
+                return;
+            }
+
+            currentVariables.forEach(variable => {
+                const row = document.createElement('div');
+                row.className = 'variable-row';
+                row.dataset.variableName = variable.name;
+
+                // Icon (ƒx for normal, lock for secret)
+                const icon = variable.isSecret
+                    ? \`<svg class="variable-icon" width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                         <path fill-rule="evenodd" d="M4 4v2h-.25A1.75 1.75 0 002 7.75v5.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0014 13.25v-5.5A1.75 1.75 0 0012.25 6H12V4a4 4 0 10-8 0zm6.5 2V4a2.5 2.5 0 00-5 0v2h5zM12 7.5h.25a.25.25 0 01.25.25v5.5a.25.25 0 01-.25.25h-8.5a.25.25 0 01-.25-.25v-5.5a.25.25 0 01.25-.25H12z"/>
+                       </svg>\`
+                    : \`<svg class="variable-icon" width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                         <path d="M6 7h4v1H6V7zm0 2h4v1H6V9z"/>
+                         <path d="M11 2H9c0-.55-.45-1-1-1s-1 .45-1 1H5c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V3c0-.55-.45-1-1-1zm0 11H5V3h6v10z"/>
+                         <text x="5" y="7.5" font-size="6" fill="currentColor" font-style="italic">fx</text>
+                       </svg>\`;
+
+                const valueDisplay = variable.isSecret ? '************' : (variable.value || '');
+                const valueText = \`= \${valueDisplay}\`;
+
+                row.innerHTML = \`
+                    \${icon}
+                    <div class="variable-content">
+                        <div class="variable-name">\${variable.name}</div>
+                        <div class="variable-value-display \${variable.isSecret ? 'secret' : ''}">\${valueText}</div>
+                    </div>
+                \`;
+
+                // Click to edit
+                row.addEventListener('click', () => {
+                    showVariableForm(variable.name);
+                });
+
+                variablesList.appendChild(row);
+            });
+        }
+
+        // Event listeners for Variables modal
+        variablesModalCloseBtn.addEventListener('click', closeVariablesModal);
+        variablesModalOverlay.addEventListener('click', closeVariablesModal);
+        closeVariablesBtn.addEventListener('click', closeVariablesModal);
+
+        addVariableBtn.addEventListener('click', () => {
+            showVariableForm();
+        });
+
+        backToListBtn.addEventListener('click', () => {
+            showMainView();
+            resetVariableForm();
+        });
+
+        cancelVariableBtn.addEventListener('click', () => {
+            showMainView();
+            resetVariableForm();
+        });
+
+        saveVariableBtn.addEventListener('click', () => {
+            const name = variableNameInput.value.trim();
+            const value = variableValueInput.value;
+            const isSecret = variableSecretCheckbox.checked;
+            const allowOverride = variableOverrideCheckbox.checked;
+
+            if (!name) {
+                alert('Variable name is required');
+                return;
+            }
+
+            // Validate variable name (must start with letter or underscore, contain only alphanumeric and underscores)
+            if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+                alert('Variable name must start with a letter or underscore and contain only letters, numbers, and underscores');
+                return;
+            }
+
+            // Check if variable already exists (when adding new)
+            if (!editingVariableName && currentVariables.some(v => v.name === name)) {
+                alert('A variable with this name already exists');
+                return;
+            }
+
+            saveVariableBtn.disabled = true;
+            saveVariableBtn.textContent = 'Saving...';
+
+            vscode.postMessage({
+                command: 'saveVariable',
+                data: {
+                    name: name,
+                    value: value,
+                    isSecret: isSecret,
+                    allowOverride: allowOverride
+                }
+            });
+        });
+
+        // Handle secret checkbox - clear value when checked
+        variableSecretCheckbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                variableValueInput.type = 'password';
+                variableValueInput.placeholder = 'Enter secret value';
+            } else {
+                variableValueInput.type = 'text';
+                variableValueInput.placeholder = 'Enter variable value';
+            }
+        });
+
         // Handle keyboard shortcut for save (Ctrl+S / Cmd+S)
         document.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -2605,6 +3267,35 @@ export class PipelineEditorPanel {
                 case 'runPipelineError':
                     runModalRunBtn.disabled = false;
                     runModalRunBtn.innerHTML = 'Run';
+                    showNotification('Error: ' + message.message, 'error');
+                    break;
+                case 'openVariablesModal':
+                    openVariablesModal();
+                    break;
+                case 'variablesLoaded':
+                    currentVariables = message.variables || [];
+                    renderVariablesList();
+                    break;
+                case 'variableSaved':
+                    saveVariableBtn.disabled = false;
+                    saveVariableBtn.textContent = 'OK';
+                    showNotification('Variable saved successfully!', 'success');
+                    // Reload variables
+                    vscode.postMessage({ command: 'loadVariables' });
+                    showMainView();
+                    resetVariableForm();
+                    break;
+                case 'variableSaveError':
+                    saveVariableBtn.disabled = false;
+                    saveVariableBtn.textContent = 'Save';
+                    showNotification('Error: ' + message.message, 'error');
+                    break;
+                case 'variableDeleted':
+                    showNotification('Variable deleted successfully!', 'success');
+                    // Reload variables
+                    vscode.postMessage({ command: 'loadVariables' });
+                    break;
+                case 'variableDeleteError':
                     showNotification('Error: ' + message.message, 'error');
                     break;
             }
