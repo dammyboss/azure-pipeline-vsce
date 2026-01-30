@@ -3552,7 +3552,6 @@ export class PipelineEditorPanel {
                     isModified = false;
                     updateButtonState();
                     updateStatus();
-                    showNotification(message.message, 'success');
                     // Update branch if a new branch was created
                     if (message.newBranch) {
                         selectedBranch = message.newBranch;
