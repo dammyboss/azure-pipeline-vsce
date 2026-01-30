@@ -1866,9 +1866,9 @@ export class PipelineEditorPanel {
         }
         .variables-modal .variables-panel {
             position: absolute;
-            top: 0;
-            right: 3%;
-            bottom: 3%;
+            top: 2%;
+            right: 1%;
+            bottom: 2%;
             width: 550px;
             max-width: 85vw;
             background: var(--vscode-editor-background);
@@ -1954,11 +1954,11 @@ export class PipelineEditorPanel {
             color: var(--vscode-input-placeholderForeground);
         }
         .add-variable-btn {
-            background: var(--vscode-button-background);
+            background: #3c3c3c;
             border: none;
-            color: var(--vscode-button-foreground);
+            color: #ffffff;
             cursor: pointer;
-            width: 36px;
+            width: 48px;
             height: 36px;
             display: flex;
             align-items: center;
@@ -1967,7 +1967,7 @@ export class PipelineEditorPanel {
             transition: background 0.2s;
         }
         .add-variable-btn:hover {
-            background: var(--vscode-button-hoverBackground);
+            background: #505050;
         }
 
         /* Variables List View */
@@ -1987,9 +1987,13 @@ export class PipelineEditorPanel {
             cursor: pointer;
             transition: background 0.15s ease;
             gap: 12px;
+            position: relative;
         }
         .variable-row:hover {
             background: var(--vscode-list-hoverBackground);
+        }
+        .variable-row:hover .variable-row-actions {
+            display: flex;
         }
         .variable-icon {
             margin-top: 2px;
@@ -2003,16 +2007,38 @@ export class PipelineEditorPanel {
         .variable-name {
             font-size: 14px;
             font-weight: 600;
-            color: var(--vscode-foreground);
+            color: #ffffff;
             margin: 0 0 4px 0;
         }
         .variable-value-display {
             font-size: 13px;
-            color: var(--vscode-descriptionForeground);
+            color: #ffffff;
             word-break: break-all;
         }
         .variable-value-display.secret {
             letter-spacing: 2px;
+        }
+        .variable-row-actions {
+            display: none;
+            gap: 8px;
+            align-items: center;
+        }
+        .variable-action-icon {
+            background: none;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s ease;
+            opacity: 0.7;
+        }
+        .variable-action-icon:hover {
+            opacity: 1;
+            background: var(--vscode-toolbar-hoverBackground);
         }
 
         /* Variables Footer */
@@ -2107,7 +2133,30 @@ export class PipelineEditorPanel {
             max-width: 600px;
         }
         .variable-form .modal-form-group {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
+        }
+        .variables-modal .modal-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 400;
+            color: #ffffff;
+        }
+        .variables-modal .modal-input {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--vscode-input-background);
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            border-radius: 2px;
+            font-size: 13px;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+        .variables-modal .modal-input:focus {
+            outline: none;
+            border: 2px solid #0078d4;
+            padding: 7px 11px;
         }
         .variable-form-info {
             margin-top: 32px;
@@ -2115,7 +2164,7 @@ export class PipelineEditorPanel {
             background: transparent;
             font-size: 13px;
             line-height: 1.6;
-            color: var(--vscode-descriptionForeground);
+            color: #ffffff;
         }
         .variables-modal .modal-checkbox-item {
             display: flex;
@@ -2128,15 +2177,15 @@ export class PipelineEditorPanel {
             height: 18px;
             cursor: pointer;
             background: transparent;
-            border: 1px solid var(--vscode-input-border);
+            border: 1px solid #ffffff;
             appearance: none;
             -webkit-appearance: none;
             -moz-appearance: none;
-            border-radius: 3px;
+            border-radius: 4px;
         }
         .variables-modal .modal-checkbox-item input[type="checkbox"]:checked {
-            background: var(--vscode-button-background);
-            border-color: var(--vscode-button-background);
+            background: #0078d4;
+            border-color: #0078d4;
         }
         .variables-modal .modal-checkbox-item input[type="checkbox"]:checked::after {
             content: '✓';
@@ -2151,6 +2200,7 @@ export class PipelineEditorPanel {
             cursor: pointer;
             font-weight: 400;
             font-size: 13px;
+            color: #ffffff;
         }
         .info-section {
             margin-bottom: 12px;
@@ -2177,10 +2227,41 @@ export class PipelineEditorPanel {
         }
         .variable-form-footer {
             margin-top: auto;
-            padding-top: 24px;
+            padding: 20px 32px;
+            border-top: 1px solid var(--vscode-panel-border);
             display: flex;
             align-items: center;
             justify-content: space-between;
+            background: var(--vscode-editor-background);
+        }
+        .variable-form-footer .modal-button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 400;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .variable-form-footer .modal-button.secondary {
+            background: #3c3c3c;
+            color: #ffffff;
+        }
+        .variable-form-footer .modal-button.secondary:hover {
+            background: #505050;
+        }
+        .variable-form-footer .modal-button.primary {
+            background: #0078d4;
+            color: white;
+        }
+        .variable-form-footer .modal-button.primary:hover {
+            background: #106ebe;
+        }
+        .variable-form-footer .modal-button:disabled {
+            background: #3c3c3c;
+            color: #666666;
+            cursor: not-allowed;
+            opacity: 0.6;
         }
         .button-group {
             display: flex;
@@ -3292,11 +3373,45 @@ export class PipelineEditorPanel {
                         <div class="variable-name">\${variable.name}</div>
                         <div class="variable-value-display \${variable.isSecret ? 'secret' : ''}">\${valueText}</div>
                     </div>
+                    <div class="variable-row-actions">
+                        <button class="variable-action-icon copy-variable-btn" title="Copy variable name">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M4 4v1h1V4h6v6h-1v1h1.5a.5.5 0 00.5-.5v-7a.5.5 0 00-.5-.5h-7a.5.5 0 00-.5.5V4z"/>
+                                <path d="M9.5 5h-7a.5.5 0 00-.5.5v7a.5.5 0 00.5.5h7a.5.5 0 00.5-.5v-7a.5.5 0 00-.5-.5z"/>
+                            </svg>
+                        </button>
+                        <button class="variable-action-icon delete-variable-btn" title="Delete variable">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path fill-rule="evenodd" d="M6.5 1.75a.25.25 0 01.25-.25h2.5a.25.25 0 01.25.25V3h-3V1.75zm4.5 0V3h2.25a.75.75 0 010 1.5H2.75a.75.75 0 010-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75zM4.496 6.675a.75.75 0 10-1.492.15l.66 6.6A1.75 1.75 0 005.405 15h5.19c.9 0 1.652-.681 1.741-1.576l.66-6.6a.75.75 0 00-1.492-.149l-.66 6.6a.25.25 0 01-.249.225h-5.19a.25.25 0 01-.249-.225l-.66-6.6z"/>
+                            </svg>
+                        </button>
+                    </div>
                 \`;
 
-                // Click to edit
-                row.addEventListener('click', () => {
+                // Click to edit (on content area only, not on action buttons)
+                const contentArea = row.querySelector('.variable-content');
+                contentArea.addEventListener('click', () => {
                     showVariableForm(variable.name);
+                });
+
+                // Copy button
+                const copyBtn = row.querySelector('.copy-variable-btn');
+                copyBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(variable.name);
+                    showNotification('Variable name copied to clipboard', 'success');
+                });
+
+                // Delete button
+                const deleteBtn = row.querySelector('.delete-variable-btn');
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (confirm(\`Are you sure you want to delete the variable "\${variable.name}"?\`)) {
+                        vscode.postMessage({
+                            command: 'deleteVariable',
+                            variableName: variable.name
+                        });
+                    }
                 });
 
                 variablesList.appendChild(row);
