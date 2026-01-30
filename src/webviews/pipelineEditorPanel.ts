@@ -2274,6 +2274,7 @@ export class PipelineEditorPanel {
             gap: 12px;
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
 </head>
 <body>
     <div class="toolbar">
@@ -2384,7 +2385,7 @@ export class PipelineEditorPanel {
 
     <div class="editor-container">
         <div class="editor-wrapper">
-            <textarea id="editor" class="editor" spellcheck="false">${yaml}</textarea>
+            <div id="editor" class="editor"></div>
         </div>
     </div>
 
@@ -2723,18 +2724,47 @@ export class PipelineEditorPanel {
         let branches = ${branchesJson};
         let isValidating = false;
         let modalValidationValid = false;
+        let monacoEditor = null;
 
-        // Initialize branches
-        renderBranches(branches);
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            // Configure YAML language with Azure Pipelines schema
+            monaco.languages.yaml.yamlDefaults.setDiagnosticsOptions({
+                validate: true,
+                enableSchemaRequest: true,
+                hover: true,
+                completion: true
+            });
 
-        // Track modifications and update button state
-        editor.addEventListener('input', () => {
-            const modified = editor.value !== originalContent;
-            if (modified !== isModified) {
-                isModified = modified;
-                updateButtonState();
-                updateStatus();
-            }
+            monacoEditor = monaco.editor.create(editor, {
+                value: \`${escapedYaml}\`,
+                language: 'yaml',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+                fontSize: 13,
+                lineNumbers: 'on',
+                renderWhitespace: 'selection',
+                tabSize: 2,
+                insertSpaces: true,
+                wordWrap: 'on',
+                folding: true
+            });
+
+            // Track modifications
+            monacoEditor.onDidChangeModelContent(() => {
+                const modified = monacoEditor.getValue() !== originalContent;
+                if (modified !== isModified) {
+                    isModified = modified;
+                    updateButtonState();
+                    updateStatus();
+                }
+            });
+
+            // Initialize branches after editor is ready
+            renderBranches(branches);
         });
 
         function updateButtonState() {
@@ -2820,7 +2850,7 @@ export class PipelineEditorPanel {
             if (!skipValidation) {
                 vscode.postMessage({
                     command: 'validateForModal',
-                    content: editor.value,
+                    content: monacoEditor.getValue(),
                     branch: selectedBranch
                 });
             }
@@ -2887,7 +2917,7 @@ export class PipelineEditorPanel {
 
             vscode.postMessage({
                 command: 'save',
-                content: editor.value,
+                content: monacoEditor.getValue(),
                 branch: selectedBranch,
                 commitMessage: fullCommitMessage,
                 createNewBranch: createNewBranch,
@@ -3527,7 +3557,7 @@ export class PipelineEditorPanel {
                     // Trigger validation of current content
                     vscode.postMessage({
                         command: 'validate',
-                        content: editor.value,
+                        content: monacoEditor.getValue(),
                         branch: selectedBranch
                     });
                     break;
@@ -3553,7 +3583,7 @@ export class PipelineEditorPanel {
                     break;
                 case 'saveSuccess':
                     closeModal();
-                    originalContent = editor.value;
+                    originalContent = monacoEditor.getValue();
                     isModified = false;
                     updateButtonState();
                     updateStatus();
