@@ -28,16 +28,26 @@ export class PipelineCodeLensProvider implements vscode.CodeLensProvider {
     ): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
         const codeLenses: vscode.CodeLens[] = [];
 
-        // Only process YAML files
-        if (document.languageId !== 'yaml' && !document.fileName.endsWith('.yml')) {
+        console.log(`[CodeLens] Checking document: ${document.fileName}, languageId: ${document.languageId}`);
+
+        // Only process YAML files (check both language ID and file extension)
+        const isYaml = document.languageId === 'yaml' ||
+                       document.languageId === 'azure-pipelines' ||
+                       document.fileName.endsWith('.yml') ||
+                       document.fileName.endsWith('.yaml');
+
+        if (!isYaml) {
+            console.log(`[CodeLens] Skipping non-YAML file: ${document.fileName}`);
             return codeLenses;
         }
 
         // Parse the document to find tasks
         const tasks = this.parseTasksFromYaml(document);
+        console.log(`[CodeLens] Found ${tasks.length} tasks in document`);
 
         // Create a CodeLens for each task
         for (const task of tasks) {
+            // Create range for the line where the task is defined
             const range = new vscode.Range(task.range.start.line, 0, task.range.start.line, 0);
 
             const codeLens = new vscode.CodeLens(range, {
@@ -48,6 +58,7 @@ export class PipelineCodeLensProvider implements vscode.CodeLensProvider {
             });
 
             codeLenses.push(codeLens);
+            console.log(`[CodeLens] Added CodeLens for ${task.taskName}@${task.taskVersion} at line ${task.range.start.line}`);
         }
 
         return codeLenses;
@@ -61,6 +72,8 @@ export class PipelineCodeLensProvider implements vscode.CodeLensProvider {
         const text = document.getText();
         const lines = text.split('\n');
 
+        console.log(`[CodeLens] Parsing document with ${lines.length} lines`);
+
         let i = 0;
         while (i < lines.length) {
             const line = lines[i];
@@ -69,6 +82,7 @@ export class PipelineCodeLensProvider implements vscode.CodeLensProvider {
             // Match task line: - task: TaskName@version
             const taskMatch = trimmed.match(/^-\s*task:\s*([^@\s]+)@(\d+)/);
             if (taskMatch) {
+                console.log(`[CodeLens] Found task at line ${i}: ${trimmed}`);
                 const taskName = taskMatch[1];
                 const taskVersion = taskMatch[2];
                 const startLine = i;
