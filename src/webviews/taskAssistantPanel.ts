@@ -898,12 +898,26 @@ export class TaskAssistantPanel {
         }
 
         function updateTaskIcons(tasks) {
+            console.log(\`[updateTaskIcons] Updating icons for \${tasks.length} tasks\`);
+            let updated = 0;
+            let skippedNoIcon = 0;
+            let skippedNotFound = 0;
+            let created = 0;
+
             tasks.forEach(task => {
-                if (!task.iconUrl) return;
+                if (!task.iconUrl) {
+                    skippedNoIcon++;
+                    console.log(\`[updateTaskIcons] Task \${task.friendlyName} has no iconUrl\`);
+                    return;
+                }
 
                 // Find the task item in the DOM
                 const taskItem = document.querySelector(\`[data-task-id="\${task.id}"]\`);
-                if (!taskItem) return;
+                if (!taskItem) {
+                    skippedNotFound++;
+                    console.log(\`[updateTaskIcons] Task item not found for \${task.friendlyName}\`);
+                    return;
+                }
 
                 // Find the icon element
                 const iconImg = taskItem.querySelector('.task-icon');
@@ -917,6 +931,8 @@ export class TaskAssistantPanel {
                         if (iconPlaceholder) {
                             iconPlaceholder.style.display = 'none';
                         }
+                        updated++;
+                        console.log(\`[updateTaskIcons] Updated existing img for \${task.friendlyName}\`);
                     } else if (iconPlaceholder) {
                         // Create new img element
                         const newImg = document.createElement('img');
@@ -926,6 +942,7 @@ export class TaskAssistantPanel {
 
                         // Add error handler
                         newImg.addEventListener('error', function() {
+                            console.error(\`[updateTaskIcons] Image load error for \${task.friendlyName}\`);
                             this.style.display = 'none';
                             if (iconPlaceholder) {
                                 iconPlaceholder.style.display = 'flex';
@@ -934,9 +951,15 @@ export class TaskAssistantPanel {
 
                         taskItem.insertBefore(newImg, iconPlaceholder);
                         iconPlaceholder.style.display = 'none';
+                        created++;
+                        console.log(\`[updateTaskIcons] Created new img for \${task.friendlyName}\`);
                     }
+                } else {
+                    console.log(\`[updateTaskIcons] Icon URL for \${task.friendlyName} doesn't start with data:, it's: \${task.iconUrl?.substring(0, 50)}\`);
                 }
             });
+
+            console.log(\`[updateTaskIcons] Summary - Updated: \${updated}, Created: \${created}, Skipped (no icon): \${skippedNoIcon}, Skipped (not found): \${skippedNotFound}\`);
         }
 
         function showTaskDetails(task, prefilledInputs = {}, prefilledDisplayName = '') {
