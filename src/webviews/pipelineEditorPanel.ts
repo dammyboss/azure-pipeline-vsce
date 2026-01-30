@@ -1868,7 +1868,7 @@ export class PipelineEditorPanel {
             position: absolute;
             top: 2%;
             right: 1%;
-            bottom: 4%;
+            bottom: 8%;
             width: 550px;
             max-width: 85vw;
             background: var(--vscode-editor-background);
@@ -2660,13 +2660,13 @@ export class PipelineEditorPanel {
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="variable-form-footer">
-                        <a href="https://go.microsoft.com/fwlink/?linkid=2098718" class="learn-link" id="learnAboutVariablesLink2" target="_blank">Learn about variables</a>
-                        <div class="button-group">
-                            <button class="modal-button secondary" id="cancelVariableBtn">Cancel</button>
-                            <button class="modal-button primary" id="saveVariableBtn">OK</button>
-                        </div>
+                <div class="variable-form-footer">
+                    <a href="https://go.microsoft.com/fwlink/?linkid=2098718" class="learn-link" id="learnAboutVariablesLink2" target="_blank">Learn about variables</a>
+                    <div class="button-group">
+                        <button class="modal-button secondary" id="cancelVariableBtn">Cancel</button>
+                        <button class="modal-button primary" id="saveVariableBtn">OK</button>
                     </div>
                 </div>
             </div>
