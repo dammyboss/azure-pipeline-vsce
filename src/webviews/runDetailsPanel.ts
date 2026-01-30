@@ -183,11 +183,12 @@ export class RunDetailsPanel {
             }
 
             // Fetch pipeline data for the form
-            const [pipeline, branches, variables, stages] = await Promise.all([
+            const [pipeline, branches, variables, stages, runtimeParameters] = await Promise.all([
                 this.client.getPipeline(pipelineId),
                 this.fetchBranches(pipelineId),
                 this.fetchVariables(pipelineId),
-                this.fetchStages(pipelineId)
+                this.fetchStages(pipelineId),
+                this.fetchRuntimeParameters(pipelineId)
             ]);
 
             // Send data to webview to show the modal form
@@ -198,6 +199,7 @@ export class RunDetailsPanel {
                     branches,
                     variables,
                     stages,
+                    runtimeParameters,
                     defaultBranch: this.run.sourceBranch?.replace('refs/heads/', '') || 'main'
                 }
             });
@@ -235,11 +237,12 @@ export class RunDetailsPanel {
             }
 
             // Fetch pipeline data for the form
-            const [pipeline, branches, variables, stages] = await Promise.all([
+            const [pipeline, branches, variables, stages, runtimeParameters] = await Promise.all([
                 this.client.getPipeline(pipelineId),
                 this.fetchBranches(pipelineId),
                 this.fetchVariables(pipelineId),
-                this.fetchStages(pipelineId)
+                this.fetchStages(pipelineId),
+                this.fetchRuntimeParameters(pipelineId)
             ]);
 
             // Identify which stages to run (only the failed ones)
@@ -259,6 +262,7 @@ export class RunDetailsPanel {
                     branches,
                     variables,
                     stages,
+                    runtimeParameters,
                     defaultBranch: this.run.sourceBranch?.replace('refs/heads/', '') || 'main',
                     preselectStages: stagesToRun.length > 0 ? stagesToRun : undefined,
                     isRerunFailedJobs: true
@@ -412,6 +416,15 @@ export class RunDetailsPanel {
             return stages;
         } catch (error) {
             console.error('Error fetching stages:', error);
+            return [];
+        }
+    }
+
+    private async fetchRuntimeParameters(pipelineId: number): Promise<any[]> {
+        try {
+            return await this.client.getPipelineRuntimeParameters(pipelineId);
+        } catch (error) {
+            console.error('Error fetching runtime parameters:', error);
             return [];
         }
     }
@@ -1359,8 +1372,33 @@ export class RunDetailsPanel {
             width: 16px;
             height: 16px;
             cursor: pointer;
+            accent-color: var(--vscode-button-background);
         }
         .modal-checkbox-item label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: 400;
+            font-size: 13px;
+        }
+        /* Radio button styles for string parameters with values */
+        .modal-radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .modal-radio-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .modal-radio-item input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--vscode-button-background);
+        }
+        .modal-radio-item label {
             margin: 0;
             cursor: pointer;
             font-weight: 400;
@@ -1550,11 +1588,16 @@ export class RunDetailsPanel {
                     </div>
                 </div>
 
-                <div class="modal-divider"></div>
-
-                <div class="modal-section">
-                    <div class="modal-section-title">Pipeline artifacts</div>
-                    <div class="modal-info-text">No pipeline artifacts found.</div>
+                <!-- Parameters Section (dynamically populated) -->
+                <div id="modalParametersSection" style="display: none;">
+                    <div class="modal-divider"></div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Parameters</div>
+                        <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-bottom: 16px;">
+                            Configure runtime parameters for this pipeline run
+                        </div>
+                        <div id="modalParametersGroup"></div>
+                    </div>
                 </div>
 
                 <div class="modal-divider"></div>
@@ -1857,15 +1900,97 @@ export class RunDetailsPanel {
             }
         });
 
+        function renderParameterInput(param, index) {
+            const paramId = 'modal-param-' + param.name;
+            const displayName = param.displayName || param.name;
+
+            // Boolean type - render as checkbox
+            if (param.type === 'boolean') {
+                const isChecked = param.default === true || param.default === 'true';
+                return \`
+                    <div class="modal-form-group">
+                        <div class="modal-checkbox-item" style="padding: 8px 0;">
+                            <input type="checkbox" id="\${paramId}" \${isChecked ? 'checked' : ''}>
+                            <label for="\${paramId}" style="font-weight: 500;">\${displayName}</label>
+                        </div>
+                    </div>
+                \`;
+            }
+
+            // String with values - render based on number of options
+            if (param.values && param.values.length > 0) {
+                if (param.values.length <= 3) {
+                    // Radio buttons for small number of options
+                    return \`
+                        <div class="modal-form-group">
+                            <label class="modal-label">\${displayName}</label>
+                            <div class="modal-radio-group" data-param-name="\${param.name}">
+                                \${param.values.map((val, i) => \`
+                                    <div class="modal-radio-item">
+                                        <input type="radio"
+                                               name="modal-param-\${param.name}"
+                                               id="\${paramId}-\${i}"
+                                               value="\${val}"
+                                               \${val === param.default ? 'checked' : ''}>
+                                        <label for="\${paramId}-\${i}">\${val}</label>
+                                    </div>
+                                \`).join('')}
+                            </div>
+                        </div>
+                    \`;
+                } else {
+                    // Dropdown for larger number of options
+                    return \`
+                        <div class="modal-form-group">
+                            <label class="modal-label">\${displayName}</label>
+                            <select class="modal-input" id="\${paramId}">
+                                \${param.values.map(val => \`
+                                    <option value="\${val}" \${val === param.default ? 'selected' : ''}>\${val}</option>
+                                \`).join('')}
+                            </select>
+                        </div>
+                    \`;
+                }
+            }
+
+            // Number type - render as number input
+            if (param.type === 'number') {
+                return \`
+                    <div class="modal-form-group">
+                        <label class="modal-label">\${displayName}</label>
+                        <input type="number" class="modal-input" id="\${paramId}" value="\${param.default !== undefined ? param.default : ''}" placeholder="Enter number">
+                    </div>
+                \`;
+            }
+
+            // Default - render as text input
+            return \`
+                <div class="modal-form-group">
+                    <label class="modal-label">\${displayName}</label>
+                    <input type="text" class="modal-input" id="\${paramId}" value="\${param.default !== undefined ? param.default : ''}" placeholder="Enter value">
+                </div>
+            \`;
+        }
+
         function showRunPipelineModal(data) {
             const modal = document.getElementById('runPipelineModal');
-            const { branches, variables, stages, defaultBranch } = data;
+            const { branches, variables, stages, runtimeParameters, defaultBranch } = data;
 
             // Populate branches
             const branchSelect = document.getElementById('modalBranchSelect');
             branchSelect.innerHTML = branches.map(branch =>
                 \`<option value="\${branch}" \${branch === defaultBranch ? 'selected' : ''}>\${branch}</option>\`
             ).join('');
+
+            // Populate runtime parameters
+            const parametersSection = document.getElementById('modalParametersSection');
+            const parametersContainer = document.getElementById('modalParametersGroup');
+            if (runtimeParameters && runtimeParameters.length > 0) {
+                parametersContainer.innerHTML = runtimeParameters.map((param, index) => renderParameterInput(param, index)).join('');
+                parametersSection.style.display = 'block';
+            } else {
+                parametersSection.style.display = 'none';
+            }
 
             // Populate stages
             const stagesContainer = document.getElementById('modalStagesGroup');
@@ -1966,7 +2091,31 @@ export class RunDetailsPanel {
                 stagesToRun.push(checkbox.value);
             });
 
-            // Collect variables
+            // Collect runtime parameters (template parameters)
+            const templateParameters = {};
+
+            // Handle checkboxes, text inputs, number inputs, and select dropdowns
+            document.querySelectorAll('[id^="modal-param-"]:not([type="radio"])').forEach(input => {
+                const key = input.id.replace('modal-param-', '');
+                if (input.type === 'checkbox') {
+                    templateParameters[key] = input.checked.toString();
+                } else if (input.tagName === 'SELECT') {
+                    templateParameters[key] = input.value;
+                } else if (input.value !== '' && input.value !== undefined) {
+                    templateParameters[key] = input.value;
+                }
+            });
+
+            // Handle radio buttons (string parameters with few values)
+            document.querySelectorAll('.modal-radio-group').forEach(group => {
+                const paramName = group.dataset.paramName;
+                const checkedRadio = group.querySelector('input[type="radio"]:checked');
+                if (paramName && checkedRadio) {
+                    templateParameters[paramName] = checkedRadio.value;
+                }
+            });
+
+            // Collect variables (legacy pipeline variables)
             const variables = {};
             document.querySelectorAll('[id^="modal-var-"]').forEach(input => {
                 const key = input.id.replace('modal-var-', '');
@@ -1974,6 +2123,9 @@ export class RunDetailsPanel {
                     variables[key] = input.value;
                 }
             });
+
+            // Merge template parameters with variables for the API call
+            const allVariables = { ...variables, ...templateParameters };
 
             const modal = document.getElementById('runPipelineModal');
             const allStagesData = JSON.parse(modal.dataset.allStages || '[]');
@@ -1986,7 +2138,7 @@ export class RunDetailsPanel {
                     commit: commit || undefined,
                     stagesToRun,
                     allStages,
-                    variables: Object.keys(variables).length > 0 ? variables : undefined,
+                    variables: Object.keys(allVariables).length > 0 ? allVariables : undefined,
                     enableDiagnostics
                 }
             });
