@@ -9,6 +9,7 @@ import { StagesTreeProvider } from './views/stagesTreeView';
 import { ServiceConnectionsTreeProvider } from './views/serviceConnectionsTreeView';
 import { PipelineCommands } from './commands/pipelineCommands';
 import { ServiceConnectionCommands } from './commands/serviceConnectionCommands';
+import { PipelineCodeLensProvider } from './providers/pipelineCodeLensProvider';
 
 let authProvider: AzureDevOpsAuthProvider;
 let client: AzureDevOpsClient;
@@ -69,8 +70,17 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(connectionStatusTreeView, pipelinesTreeView, runsTreeView, stagesTreeView, serviceConnectionsTreeView);
 
+    // Register CodeLens provider for YAML pipelines
+    const codeLensProvider = new PipelineCodeLensProvider();
+    context.subscriptions.push(
+        vscode.languages.registerCodeLensProvider(
+            { language: 'yaml', pattern: '**/*.{yml,yaml}' },
+            codeLensProvider
+        )
+    );
+
     // Initialize commands
-    const pipelineCommands = new PipelineCommands(client, pipelinesProvider, runsProvider, stagesProvider);
+    const pipelineCommands = new PipelineCommands(client, pipelinesProvider, runsProvider, stagesProvider, codeLensProvider);
     pipelineCommands.register(context);
 
     const serviceConnectionCommands = new ServiceConnectionCommands(client, serviceConnectionsProvider);

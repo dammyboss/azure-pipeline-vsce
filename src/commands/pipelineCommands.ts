@@ -12,6 +12,7 @@ import { PipelineRunsPanel } from '../webviews/pipelineRunsPanel';
 import { PipelineEditorPanel } from '../webviews/pipelineEditorPanel';
 import { TaskAssistantPanel } from '../webviews/taskAssistantPanel';
 import { TaskService } from '../services/taskService';
+import { PipelineCodeLensProvider } from '../providers/pipelineCodeLensProvider';
 
 /**
  * Pipeline command handlers
@@ -23,7 +24,8 @@ export class PipelineCommands {
         private client: AzureDevOpsClient,
         private pipelinesProvider: PipelinesTreeProvider,
         private runsProvider: RunsTreeProvider,
-        private stagesProvider: StagesTreeProvider
+        private stagesProvider: StagesTreeProvider,
+        private codeLensProvider?: PipelineCodeLensProvider
     ) {
         this.taskService = new TaskService(client);
     }
@@ -95,6 +97,9 @@ export class PipelineCommands {
             ),
             vscode.commands.registerCommand('azurePipelines.openTaskAssistant', () =>
                 this.openTaskAssistant()
+            ),
+            vscode.commands.registerCommand('azurePipelines.configureTask', (taskData: any) =>
+                this.configureTask(taskData)
             )
         );
     }
@@ -109,6 +114,20 @@ export class PipelineCommands {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to open Task Assistant: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * Configure a task from YAML (opened via CodeLens)
+     */
+    private async configureTask(taskData: any): Promise<void> {
+        try {
+            // Open Task Assistant with pre-filled task data
+            const panel = TaskAssistantPanel.show(this.taskService, taskData);
+            vscode.window.showInformationMessage(`Configuring task: ${taskData.taskName}@${taskData.taskVersion}`);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to configure task: ${errorMessage}`);
         }
     }
 

@@ -45,7 +45,7 @@ export class TaskAssistantPanel {
                         await this.generateYaml(message.taskId, message.inputs);
                         break;
                     case 'insertTask':
-                        this.insertTask(message.yaml);
+                        await this.insertTask(message.yaml);
                         break;
                 }
             },
@@ -67,12 +67,18 @@ export class TaskAssistantPanel {
     /**
      * Show the task assistant panel
      */
-    static show(taskService: TaskService): TaskAssistantPanel {
+    static show(taskService: TaskService, initialTaskData?: any): TaskAssistantPanel {
         const column = vscode.ViewColumn.Two;
 
         // Reuse existing panel if available
         if (TaskAssistantPanel.currentPanel) {
             TaskAssistantPanel.currentPanel._panel.reveal(column);
+
+            // If initial task data is provided, configure the task
+            if (initialTaskData) {
+                TaskAssistantPanel.currentPanel.configureTaskFromYaml(initialTaskData);
+            }
+
             return TaskAssistantPanel.currentPanel;
         }
 
@@ -88,6 +94,12 @@ export class TaskAssistantPanel {
         );
 
         TaskAssistantPanel.currentPanel = new TaskAssistantPanel(panel, taskService);
+
+        // If initial task data is provided, configure the task
+        if (initialTaskData) {
+            TaskAssistantPanel.currentPanel.configureTaskFromYaml(initialTaskData);
+        }
+
         return TaskAssistantPanel.currentPanel;
     }
 
@@ -96,6 +108,31 @@ export class TaskAssistantPanel {
      */
     onTaskSelected(callback: (yaml: string) => void): void {
         this._onTaskSelected = callback;
+    }
+
+    /**
+     * Configure a task from YAML data (from CodeLens)
+     */
+    private async configureTaskFromYaml(taskData: any): Promise<void> {
+        try {
+            // Find the task by name
+            const task = await this._taskService.getTaskByName(taskData.taskName);
+
+            if (!task) {
+                vscode.window.showErrorMessage(`Task not found: ${taskData.taskName}`);
+                return;
+            }
+
+            // Send message to webview to open task details with pre-filled inputs
+            this._panel.webview.postMessage({
+                command: 'configureTask',
+                task: task,
+                inputs: taskData.inputs,
+                displayName: taskData.displayName
+            });
+        } catch (error) {
+            console.error('Configure task from YAML error:', error);
+        }
     }
 
     /**
@@ -198,13 +235,24 @@ export class TaskAssistantPanel {
     /**
      * Insert task into editor
      */
-    private insertTask(yaml: string): void {
+    private async insertTask(yaml: string): Promise<void> {
         if (this._onTaskSelected) {
             this._onTaskSelected(yaml);
+            return;
+        }
+
+        // Try to insert into active YAML editor
+        const editor = vscode.window.activeTextEditor;
+        if (editor && (editor.document.languageId === 'yaml' || editor.document.fileName.endsWith('.yml'))) {
+            const position = editor.selection.active;
+            await editor.edit(editBuilder => {
+                editBuilder.insert(position, yaml + '\n');
+            });
+            vscode.window.showInformationMessage('Task added to pipeline');
         } else {
             // Fallback: copy to clipboard
-            vscode.env.clipboard.writeText(yaml);
-            vscode.window.showInformationMessage('Task YAML copied to clipboard');
+            await vscode.env.clipboard.writeText(yaml);
+            vscode.window.showInformationMessage('Task YAML copied to clipboard (no active YAML editor found)');
         }
     }
 
@@ -559,6 +607,10 @@ export class TaskAssistantPanel {
                     document.getElementById('taskList').innerHTML =
                         '<div class="empty-state">Failed to load tasks: ' + message.message + '</div>';
                     break;
+                case 'configureTask':
+                    // Open task details with pre-filled inputs
+                    showTaskDetails(message.task, message.inputs, message.displayName);
+                    break;
             }
         });
 
@@ -635,7 +687,7 @@ export class TaskAssistantPanel {
             });
         }
 
-        function showTaskDetails(task) {
+        function showTaskDetails(task, prefilledInputs = {}, prefilledDisplayName = '') {
             selectedTask = task;
             const container = document.getElementById('taskDetails');
             container.classList.add('open');
@@ -657,9 +709,23 @@ export class TaskAssistantPanel {
                 <form id="taskForm">
             \`;
 
+            // Add displayName input
+            html += \`
+                <div class="form-group">
+                    <label>Display Name</label>
+                    <input type="text"
+                           name="displayName"
+                           value="\${prefilledDisplayName || task.friendlyName}"
+                           style="width: 100%;" />
+                </div>
+            \`;
+
             // Add form inputs based on task inputs
             if (task.inputs && task.inputs.length > 0) {
                 task.inputs.forEach(input => {
+                    // Get pre-filled value or default value
+                    const inputValue = prefilledInputs[input.name] !== undefined ? prefilledInputs[input.name] : input.defaultValue;
+
                     html += \`
                         <div class="form-group">
                             <label>
@@ -669,28 +735,30 @@ export class TaskAssistantPanel {
                     \`;
 
                     if (input.type === 'boolean') {
+                        const isChecked = inputValue === true || inputValue === 'true';
                         html += \`
                             <input type="checkbox"
                                    name="\${input.name}"
-                                   \${input.defaultValue === 'true' ? 'checked' : ''} />
+                                   \${isChecked ? 'checked' : ''} />
                         \`;
                     } else if (input.type === 'pickList' && input.options) {
                         html += \`<select name="\${input.name}">\`;
                         Object.entries(input.options).forEach(([key, value]) => {
-                            html += \`<option value="\${key}" \${input.defaultValue === key ? 'selected' : ''}>\${value}</option>\`;
+                            const isSelected = inputValue === key;
+                            html += \`<option value="\${key}" \${isSelected ? 'selected' : ''}>\${value}</option>\`;
                         });
                         html += \`</select>\`;
                     } else if (input.type === 'multiLine') {
                         html += \`
                             <textarea name="\${input.name}"
                                       rows="4"
-                                      style="width: 100%; padding: 6px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 2px;">\${input.defaultValue || ''}</textarea>
+                                      style="width: 100%; padding: 6px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 2px;">\${inputValue || ''}</textarea>
                         \`;
                     } else {
                         html += \`
                             <input type="text"
                                    name="\${input.name}"
-                                   value="\${input.defaultValue || ''}"
+                                   value="\${inputValue || ''}"
                                    \${input.required ? 'required' : ''}
                                    style="width: 100%;" />
                         \`;
