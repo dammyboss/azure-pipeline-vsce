@@ -752,8 +752,36 @@ export class PipelineEditorPanel {
             cursor: not-allowed;
         }
 
-        /* Modern Refresh Button */
-        .refresh-btn {
+        /* Variables Button */
+        .variables-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: var(--vscode-button-secondaryBackground, #3a3d41);
+            color: var(--vscode-button-secondaryForeground, #cccccc);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .variables-btn:hover {
+            background: var(--vscode-button-secondaryHoverBackground, #45494e);
+        }
+
+        .variables-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* More Menu (3-dot menu) */
+        .more-menu-container {
+            position: relative;
+        }
+
+        .more-btn {
             display: flex;
             align-items: center;
             justify-content: center;
@@ -767,16 +795,58 @@ export class PipelineEditorPanel {
             transition: all 0.2s ease;
         }
 
-        .refresh-btn:hover {
+        .more-btn:hover {
             background: var(--vscode-button-secondaryHoverBackground, #45494e);
-            transform: scale(1.05);
         }
 
-        .refresh-btn:active {
+        .more-btn:active {
             transform: scale(0.95);
         }
 
-        .refresh-btn.spinning svg {
+        .more-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            min-width: 220px;
+            background: var(--vscode-menu-background, #252526);
+            border: 1px solid var(--vscode-menu-border, #454545);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .more-menu.show {
+            display: block;
+        }
+
+        .more-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 10px 16px;
+            background: transparent;
+            border: none;
+            color: var(--vscode-menu-foreground, #cccccc);
+            font-size: 13px;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .more-menu-item:hover {
+            background: var(--vscode-menu-selectionBackground, #094771);
+            color: var(--vscode-menu-selectionForeground, white);
+        }
+
+        .more-menu-item svg {
+            flex-shrink: 0;
+        }
+
+        .more-menu-item.spinning svg {
             animation: spin 0.8s linear infinite;
         }
 
@@ -1642,10 +1712,12 @@ export class PipelineEditorPanel {
             </div>
         </div>
         <div class="toolbar-group" style="margin-left: auto;">
-            <button id="refreshBtn" class="refresh-btn" title="Refresh from repository">
-                <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
-                    <path fill-rule="evenodd" d="M2.5 8a5.5 5.5 0 119.3 4l-.9-.9A4.5 4.5 0 108.5 3.5v2L6 3l2.5-2.5v2a5.5 5.5 0 010 11A5.5 5.5 0 012.5 8z"/>
+            <button id="variablesBtn" class="variables-btn" title="Manage pipeline variables">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M7.5 1.75v1.5h-5a.75.75 0 000 1.5h5v1.5L10 4.5 7.5 1.75zm1 11.5v-1.5h5a.75.75 0 000-1.5h-5v-1.5L6 11.5l2.5 2.75z"/>
+                    <path fill-rule="evenodd" d="M12.5 6.25a.75.75 0 01.75.75v1.25h1.5a.75.75 0 010 1.5h-1.5V11a.75.75 0 01-1.5 0V9.75h-1.5a.75.75 0 010-1.5h1.5V7a.75.75 0 01.75-.75zm-9 0a.75.75 0 01.75.75v1.25h1.5a.75.75 0 010 1.5h-1.5V11a.75.75 0 01-1.5 0V9.75h-1.5a.75.75 0 010-1.5h1.5V7a.75.75 0 01.75-.75z"/>
                 </svg>
+                <span>Variables</span>
             </button>
             <button id="actionBtn" class="action-btn run" title="Run pipeline">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -1653,6 +1725,23 @@ export class PipelineEditorPanel {
                 </svg>
                 <span id="actionBtnText">Run</span>
             </button>
+            <div class="more-menu-container">
+                <button id="moreBtn" class="more-btn" title="More actions">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <circle cx="8" cy="3" r="1.5"/>
+                        <circle cx="8" cy="8" r="1.5"/>
+                        <circle cx="8" cy="13" r="1.5"/>
+                    </svg>
+                </button>
+                <div class="more-menu" id="moreMenu">
+                    <button class="more-menu-item" id="refreshMenuItem">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path fill-rule="evenodd" d="M2.5 8a5.5 5.5 0 119.3 4l-.9-.9A4.5 4.5 0 108.5 3.5v2L6 3l2.5-2.5v2a5.5 5.5 0 010 11A5.5 5.5 0 012.5 8z"/>
+                        </svg>
+                        <span>Refresh from repository</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1884,7 +1973,10 @@ export class PipelineEditorPanel {
         const editor = document.getElementById('editor');
         const actionBtn = document.getElementById('actionBtn');
         const actionBtnText = document.getElementById('actionBtnText');
-        const refreshBtn = document.getElementById('refreshBtn');
+        const variablesBtn = document.getElementById('variablesBtn');
+        const moreBtn = document.getElementById('moreBtn');
+        const moreMenu = document.getElementById('moreMenu');
+        const refreshMenuItem = document.getElementById('refreshMenuItem');
         const branchDropdownTrigger = document.getElementById('branchDropdownTrigger');
         const branchDropdownMenu = document.getElementById('branchDropdownMenu');
         const branchSearch = document.getElementById('branchSearch');
@@ -2406,18 +2498,33 @@ export class PipelineEditorPanel {
             if (!branchDropdownTrigger.contains(e.target) && !branchDropdownMenu.contains(e.target)) {
                 closeBranchDropdown();
             }
+            if (!moreBtn.contains(e.target) && !moreMenu.contains(e.target)) {
+                moreMenu.classList.remove('show');
+            }
         });
 
-        // Handle refresh button
-        refreshBtn.addEventListener('click', () => {
+        // Handle Variables button
+        variablesBtn.addEventListener('click', () => {
+            vscode.postMessage({ command: 'openVariablesModal' });
+        });
+
+        // Handle More menu toggle
+        moreBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            moreMenu.classList.toggle('show');
+        });
+
+        // Handle refresh menu item
+        refreshMenuItem.addEventListener('click', () => {
             if (isModified) {
                 if (!confirm('You have unsaved changes. Refresh anyway?')) {
                     return;
                 }
             }
-            refreshBtn.classList.add('spinning');
+            refreshMenuItem.classList.add('spinning');
             vscode.postMessage({ command: 'refresh' });
-            setTimeout(() => refreshBtn.classList.remove('spinning'), 1000);
+            setTimeout(() => refreshMenuItem.classList.remove('spinning'), 1000);
+            moreMenu.classList.remove('show');
         });
 
         // Handle keyboard shortcut for save (Ctrl+S / Cmd+S)
