@@ -814,7 +814,7 @@ export class TaskAssistantPanel {
             return \`
                 <div class="task-item" data-task-id="\${task.id}">
                     \${task.iconUrl ?
-                        \`<img src="\${task.iconUrl}" class="task-icon" alt="\${task.friendlyName} icon" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="task-icon-placeholder" style="display:none;">\${task.friendlyName.charAt(0).toUpperCase()}</div>\` :
+                        \`<img src="\${task.iconUrl}" class="task-icon" alt="\${task.friendlyName} icon" data-fallback-text="\${task.friendlyName.charAt(0).toUpperCase()}" /><div class="task-icon-placeholder" style="display:none;">\${task.friendlyName.charAt(0).toUpperCase()}</div>\` :
                         \`<div class="task-icon-placeholder">\${task.friendlyName.charAt(0).toUpperCase()}</div>\`
                     }
                     <div class="task-content">
@@ -839,6 +839,19 @@ export class TaskAssistantPanel {
                     item.addEventListener('click', () => {
                         const taskId = item.dataset.taskId;
                         vscode.postMessage({ command: 'getTaskDetails', taskId });
+                    });
+                }
+
+                // Attach error handler for task icons
+                const iconImg = item.querySelector('.task-icon');
+                if (iconImg && !iconImg.hasAttribute('data-error-handler-attached')) {
+                    iconImg.setAttribute('data-error-handler-attached', 'true');
+                    iconImg.addEventListener('error', function() {
+                        this.style.display = 'none';
+                        const placeholder = this.nextElementSibling;
+                        if (placeholder && placeholder.classList.contains('task-icon-placeholder')) {
+                            placeholder.style.display = 'flex';
+                        }
                     });
                 }
             });
@@ -909,6 +922,15 @@ export class TaskAssistantPanel {
                         newImg.src = task.iconUrl;
                         newImg.className = 'task-icon';
                         newImg.alt = task.friendlyName + ' icon';
+
+                        // Add error handler
+                        newImg.addEventListener('error', function() {
+                            this.style.display = 'none';
+                            if (iconPlaceholder) {
+                                iconPlaceholder.style.display = 'flex';
+                            }
+                        });
+
                         taskItem.insertBefore(newImg, iconPlaceholder);
                         iconPlaceholder.style.display = 'none';
                     }
