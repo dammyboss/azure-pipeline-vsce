@@ -825,6 +825,69 @@ export class AzureDevOpsClient {
     }
 
     /**
+     * Create or update a pipeline variable
+     */
+    async createOrUpdatePipelineVariable(
+        pipelineId: number,
+        variableName: string,
+        value: string,
+        isSecret: boolean = false,
+        allowOverride: boolean = false
+    ): Promise<void> {
+        // Get current pipeline definition
+        const response = await this.axiosInstance.get(
+            `${this.organizationUrl}/${this.projectName}/_apis/build/definitions/${pipelineId}`,
+            { params: { 'api-version': '7.1-preview.7' } }
+        );
+
+        const definition = response.data;
+
+        // Initialize variables object if it doesn't exist
+        if (!definition.variables) {
+            definition.variables = {};
+        }
+
+        // Add or update the variable
+        definition.variables[variableName] = {
+            value: isSecret ? '' : value,  // Don't send secret values in definition
+            isSecret: isSecret,
+            allowOverride: allowOverride
+        };
+
+        // Update the pipeline definition
+        await this.axiosInstance.put(
+            `${this.organizationUrl}/${this.projectName}/_apis/build/definitions/${pipelineId}`,
+            definition,
+            { params: { 'api-version': '7.1-preview.7' } }
+        );
+    }
+
+    /**
+     * Delete a pipeline variable
+     */
+    async deletePipelineVariable(pipelineId: number, variableName: string): Promise<void> {
+        // Get current pipeline definition
+        const response = await this.axiosInstance.get(
+            `${this.organizationUrl}/${this.projectName}/_apis/build/definitions/${pipelineId}`,
+            { params: { 'api-version': '7.1-preview.7' } }
+        );
+
+        const definition = response.data;
+
+        // Remove the variable if it exists
+        if (definition.variables && definition.variables[variableName]) {
+            delete definition.variables[variableName];
+
+            // Update the pipeline definition
+            await this.axiosInstance.put(
+                `${this.organizationUrl}/${this.projectName}/_apis/build/definitions/${pipelineId}`,
+                definition,
+                { params: { 'api-version': '7.1-preview.7' } }
+            );
+        }
+    }
+
+    /**
      * Get variable groups
      */
     async getVariableGroups(): Promise<VariableGroup[]> {
