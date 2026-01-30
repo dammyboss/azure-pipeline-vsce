@@ -32,6 +32,9 @@ export class TaskAssistantPanel {
                     case 'loadTasks':
                         await this.loadTasks();
                         break;
+                    case 'loadMoreTasks':
+                        await this.loadMoreTasks(message.offset, message.limit);
+                        break;
                     case 'searchTasks':
                         await this.searchTasks(message.query);
                         break;
@@ -136,17 +139,29 @@ export class TaskAssistantPanel {
     }
 
     /**
-     * Load all tasks
+     * Load initial tasks (first batch)
      */
     private async loadTasks(): Promise<void> {
         try {
-            const tasks = await this._taskService.getAllTasks();
+            // Load all tasks in background (for caching)
+            const allTasksPromise = this._taskService.getAllTasks();
+
+            // Get categories and popular tasks
             const categories = await this._taskService.getCategories();
             const popularTasks = await this._taskService.getPopularTasks();
 
+            // Wait for all tasks to be cached
+            const allTasks = await allTasksPromise;
+
+            // Send initial batch (first 50 tasks)
+            const initialBatch = allTasks.slice(0, 50);
+            const hasMore = allTasks.length > 50;
+
             this._panel.webview.postMessage({
                 command: 'tasksLoaded',
-                tasks: this.simplifyTasks(tasks),
+                tasks: this.simplifyTasks(initialBatch),
+                totalCount: allTasks.length,
+                hasMore,
                 categories,
                 popularTasks: this.simplifyTasks(popularTasks)
             });
@@ -156,6 +171,32 @@ export class TaskAssistantPanel {
             this._panel.webview.postMessage({
                 command: 'loadError',
                 message: errorMessage
+            });
+        }
+    }
+
+    /**
+     * Load more tasks (for pagination)
+     */
+    private async loadMoreTasks(offset: number, limit: number): Promise<void> {
+        try {
+            // Get cached tasks
+            const allTasks = await this._taskService.getAllTasks();
+
+            // Get the requested batch
+            const batch = allTasks.slice(offset, offset + limit);
+            const hasMore = offset + limit < allTasks.length;
+
+            this._panel.webview.postMessage({
+                command: 'moreTasks',
+                tasks: this.simplifyTasks(batch),
+                hasMore
+            });
+        } catch (error) {
+            console.error('Load more tasks error:', error);
+            this._panel.webview.postMessage({
+                command: 'loadMoreError',
+                message: error instanceof Error ? error.message : 'Unknown error'
             });
         }
     }
@@ -573,9 +614,14 @@ export class TaskAssistantPanel {
         const vscode = acquireVsCodeApi();
 
         let allTasks = [];
+        let displayedTasks = [];
         let popularTasks = [];
         let currentTab = 'all';
         let selectedTask = null;
+        let isLoading = false;
+        let hasMore = false;
+        let totalCount = 0;
+        let observer = null;
 
         // Load tasks on startup
         vscode.postMessage({ command: 'loadTasks' });
@@ -587,14 +633,39 @@ export class TaskAssistantPanel {
             switch (message.command) {
                 case 'tasksLoaded':
                     allTasks = message.tasks;
+                    displayedTasks = message.tasks;
                     popularTasks = message.popularTasks;
+                    totalCount = message.totalCount;
+                    hasMore = message.hasMore;
                     populateCategoryFilter(message.categories);
-                    renderTasks(currentTab === 'all' ? allTasks : popularTasks);
+                    renderTasks(currentTab === 'all' ? displayedTasks : popularTasks);
+                    if (hasMore && currentTab === 'all') {
+                        setupIntersectionObserver();
+                    }
+                    break;
+                case 'moreTasks':
+                    isLoading = false;
+                    if (message.tasks.length > 0) {
+                        displayedTasks = displayedTasks.concat(message.tasks);
+                        appendTasks(message.tasks);
+                        hasMore = message.hasMore;
+                        if (!hasMore) {
+                            removeLoadingSentinel();
+                        }
+                    }
                     break;
                 case 'searchResults':
+                    hasMore = false;
+                    if (observer) {
+                        observer.disconnect();
+                    }
                     renderTasks(message.tasks);
                     break;
                 case 'categoryResults':
+                    hasMore = false;
+                    if (observer) {
+                        observer.disconnect();
+                    }
                     renderTasks(message.tasks);
                     break;
                 case 'taskDetails':
@@ -606,6 +677,10 @@ export class TaskAssistantPanel {
                 case 'loadError':
                     document.getElementById('taskList').innerHTML =
                         '<div class="empty-state">Failed to load tasks: ' + message.message + '</div>';
+                    break;
+                case 'loadMoreError':
+                    isLoading = false;
+                    console.error('Failed to load more tasks:', message.message);
                     break;
                 case 'configureTask':
                     // Open task details with pre-filled inputs
@@ -620,7 +695,15 @@ export class TaskAssistantPanel {
             if (query.length > 0) {
                 vscode.postMessage({ command: 'searchTasks', query });
             } else {
-                renderTasks(currentTab === 'all' ? allTasks : popularTasks);
+                // Reset to displayed tasks (with lazy loading)
+                if (currentTab === 'all') {
+                    renderTasks(displayedTasks);
+                    if (hasMore) {
+                        setupIntersectionObserver();
+                    }
+                } else {
+                    renderTasks(popularTasks);
+                }
             }
         });
 
@@ -636,7 +719,17 @@ export class TaskAssistantPanel {
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
                 currentTab = tab.dataset.tab;
-                renderTasks(currentTab === 'all' ? allTasks : popularTasks);
+                if (currentTab === 'all') {
+                    renderTasks(displayedTasks);
+                    if (hasMore) {
+                        setupIntersectionObserver();
+                    }
+                } else {
+                    renderTasks(popularTasks);
+                    if (observer) {
+                        observer.disconnect();
+                    }
+                }
             });
         });
 
@@ -658,7 +751,43 @@ export class TaskAssistantPanel {
                 return;
             }
 
-            container.innerHTML = tasks.map(task => \`
+            container.innerHTML = tasks.map(task => createTaskItemHTML(task)).join('');
+
+            // Add sentinel for lazy loading
+            if (hasMore && currentTab === 'all') {
+                const sentinel = document.createElement('div');
+                sentinel.id = 'taskListSentinel';
+                sentinel.className = 'loading';
+                sentinel.textContent = 'Loading more tasks...';
+                container.appendChild(sentinel);
+            }
+
+            // Add click handlers
+            attachTaskClickHandlers(container);
+        }
+
+        function appendTasks(tasks) {
+            const container = document.getElementById('taskList');
+            const sentinel = document.getElementById('taskListSentinel');
+
+            tasks.forEach(task => {
+                const taskElement = document.createElement('div');
+                taskElement.innerHTML = createTaskItemHTML(task);
+                const taskItem = taskElement.firstElementChild;
+
+                if (sentinel) {
+                    container.insertBefore(taskItem, sentinel);
+                } else {
+                    container.appendChild(taskItem);
+                }
+            });
+
+            // Add click handlers to new tasks
+            attachTaskClickHandlers(container);
+        }
+
+        function createTaskItemHTML(task) {
+            return \`
                 <div class="task-item" data-task-id="\${task.id}">
                     \${task.iconUrl ?
                         \`<img src="\${task.iconUrl}" class="task-icon" alt="\${task.friendlyName} icon" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="task-icon-placeholder" style="display:none;">\${task.friendlyName.charAt(0).toUpperCase()}</div>\` :
@@ -676,15 +805,58 @@ export class TaskAssistantPanel {
                         </div>
                     </div>
                 </div>
-            \`).join('');
+            \`;
+        }
 
-            // Add click handlers
+        function attachTaskClickHandlers(container) {
             container.querySelectorAll('.task-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const taskId = item.dataset.taskId;
-                    vscode.postMessage({ command: 'getTaskDetails', taskId });
-                });
+                if (!item.hasAttribute('data-handler-attached')) {
+                    item.setAttribute('data-handler-attached', 'true');
+                    item.addEventListener('click', () => {
+                        const taskId = item.dataset.taskId;
+                        vscode.postMessage({ command: 'getTaskDetails', taskId });
+                    });
+                }
             });
+        }
+
+        function setupIntersectionObserver() {
+            if (observer) {
+                observer.disconnect();
+            }
+
+            const sentinel = document.getElementById('taskListSentinel');
+            if (!sentinel) return;
+
+            observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && !isLoading && hasMore) {
+                        isLoading = true;
+                        const offset = displayedTasks.length;
+                        vscode.postMessage({
+                            command: 'loadMoreTasks',
+                            offset: offset,
+                            limit: 50
+                        });
+                    }
+                });
+            }, {
+                root: null,
+                rootMargin: '100px',
+                threshold: 0.1
+            });
+
+            observer.observe(sentinel);
+        }
+
+        function removeLoadingSentinel() {
+            const sentinel = document.getElementById('taskListSentinel');
+            if (sentinel) {
+                sentinel.remove();
+            }
+            if (observer) {
+                observer.disconnect();
+            }
         }
 
         function showTaskDetails(task, prefilledInputs = {}, prefilledDisplayName = '') {
