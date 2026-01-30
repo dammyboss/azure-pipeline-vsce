@@ -1413,6 +1413,124 @@ export class PipelineEditorPanel {
             padding: 16px 20px;
             border-top: 1px solid var(--vscode-panel-border, #454545);
         }
+
+        .run-modal-expandable {
+            border: 1px solid var(--vscode-panel-border, #454545);
+            border-radius: 6px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        .run-modal-expandable-header {
+            padding: 12px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--vscode-editor-inactiveSelectionBackground, #37373d);
+        }
+
+        .run-modal-expandable-header:hover {
+            background: var(--vscode-list-hoverBackground, #2a2d2e);
+        }
+
+        .run-modal-expandable-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .run-modal-expandable-arrow {
+            font-size: 12px;
+            transition: transform 0.2s;
+        }
+
+        .run-modal-expandable.expanded .run-modal-expandable-arrow {
+            transform: rotate(90deg);
+        }
+
+        .run-modal-expandable-content {
+            display: none;
+            padding: 16px;
+            background: var(--vscode-editor-background, #1e1e1e);
+        }
+
+        .run-modal-expandable.expanded .run-modal-expandable-content {
+            display: block;
+        }
+
+        .run-modal-checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .run-modal-checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .run-modal-checkbox-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--vscode-button-background, #0e639c);
+        }
+
+        .run-modal-checkbox-item label {
+            margin: 0;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .run-modal-variable-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .run-modal-variable-item {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .run-modal-variable-name {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .run-modal-divider {
+            height: 1px;
+            background: var(--vscode-panel-border, #454545);
+            margin: 20px 0;
+        }
+
+        .run-modal-info-text {
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground, #8b8b8b);
+            padding: 12px;
+            background: var(--vscode-editor-inactiveSelectionBackground, #37373d);
+            border-radius: 4px;
+        }
+
+        .run-modal-param-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .run-modal-param-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .run-modal-param-label {
+            font-size: 13px;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -1593,10 +1711,55 @@ export class PipelineEditorPanel {
             </div>
             <div class="run-modal-body">
                 <div class="run-modal-section">
-                    <div class="run-modal-section-label">Branch</div>
+                    <div class="run-modal-section-label">Pipeline version</div>
                     <select class="run-modal-select" id="runBranchSelect">
                         <option value="${defaultBranch}">${defaultBranch}</option>
                     </select>
+                </div>
+
+                <!-- Runtime Parameters Section -->
+                <div id="runParametersSection" style="display: none;">
+                    <div class="run-modal-divider"></div>
+                    <div class="run-modal-section">
+                        <div class="run-modal-section-label">Parameters</div>
+                        <div class="run-modal-param-group" id="runParametersContainer"></div>
+                    </div>
+                </div>
+
+                <div class="run-modal-divider"></div>
+
+                <div class="run-modal-section">
+                    <div class="run-modal-section-label">Advanced options</div>
+
+                    <!-- Stages Section -->
+                    <div id="runStagesExpandable" class="run-modal-expandable" style="display: none;">
+                        <div class="run-modal-expandable-header" onclick="document.getElementById('runStagesExpandable').classList.toggle('expanded')">
+                            <div class="run-modal-expandable-title">Stages to run</div>
+                            <div class="run-modal-expandable-arrow">▶</div>
+                        </div>
+                        <div class="run-modal-expandable-content">
+                            <div class="run-modal-checkbox-group" id="runStagesContainer"></div>
+                        </div>
+                    </div>
+
+                    <div id="runNoStagesText" class="run-modal-info-text" style="display: none;">
+                        Run all stages as configured
+                    </div>
+
+                    <!-- Variables Section -->
+                    <div id="runVariablesExpandable" class="run-modal-expandable" style="display: none;">
+                        <div class="run-modal-expandable-header" onclick="document.getElementById('runVariablesExpandable').classList.toggle('expanded')">
+                            <div class="run-modal-expandable-title">Variables</div>
+                            <div class="run-modal-expandable-arrow">▶</div>
+                        </div>
+                        <div class="run-modal-expandable-content">
+                            <div class="run-modal-variable-list" id="runVariablesContainer"></div>
+                        </div>
+                    </div>
+
+                    <div id="runNoVariablesText" class="run-modal-info-text" style="display: none;">
+                        This pipeline has no defined variables
+                    </div>
                 </div>
             </div>
             <div class="run-modal-footer">
@@ -1835,6 +1998,90 @@ export class PipelineEditorPanel {
                 \`<option value="\${branch}" \${branch === data.defaultBranch ? 'selected' : ''}>\${branch}</option>\`
             ).join('');
 
+            // Populate runtime parameters
+            const parametersSection = document.getElementById('runParametersSection');
+            const parametersContainer = document.getElementById('runParametersContainer');
+            if (data.runtimeParameters && data.runtimeParameters.length > 0) {
+                parametersContainer.innerHTML = data.runtimeParameters.map(param => {
+                    const paramId = 'run-param-' + param.name;
+                    const displayName = param.displayName || param.name;
+
+                    if (param.type === 'boolean') {
+                        const isChecked = param.default === true || param.default === 'true';
+                        return \`
+                            <div class="run-modal-param-item">
+                                <div class="run-modal-checkbox-item">
+                                    <input type="checkbox" id="\${paramId}" \${isChecked ? 'checked' : ''}>
+                                    <label for="\${paramId}">\${displayName}</label>
+                                </div>
+                            </div>
+                        \`;
+                    }
+
+                    if (param.values && param.values.length > 0) {
+                        return \`
+                            <div class="run-modal-param-item">
+                                <label class="run-modal-param-label">\${displayName}</label>
+                                <select class="run-modal-select" id="\${paramId}">
+                                    \${param.values.map(val => \`
+                                        <option value="\${val}" \${val === param.default ? 'selected' : ''}>\${val}</option>
+                                    \`).join('')}
+                                </select>
+                            </div>
+                        \`;
+                    }
+
+                    return \`
+                        <div class="run-modal-param-item">
+                            <label class="run-modal-param-label">\${displayName}</label>
+                            <input type="text" class="run-modal-input" id="\${paramId}"
+                                   value="\${param.default || ''}"
+                                   placeholder="Enter value">
+                        </div>
+                    \`;
+                }).join('');
+                parametersSection.style.display = 'block';
+            } else {
+                parametersSection.style.display = 'none';
+            }
+
+            // Populate stages
+            const stagesExpandable = document.getElementById('runStagesExpandable');
+            const stagesContainer = document.getElementById('runStagesContainer');
+            const noStagesText = document.getElementById('runNoStagesText');
+            if (data.stages && data.stages.length > 0) {
+                stagesContainer.innerHTML = data.stages.map(stage => \`
+                    <div class="run-modal-checkbox-item">
+                        <input type="checkbox" id="run-stage-\${stage.name}" value="\${stage.name}" checked>
+                        <label for="run-stage-\${stage.name}">\${stage.displayName || stage.name}</label>
+                    </div>
+                \`).join('');
+                stagesExpandable.style.display = 'block';
+                noStagesText.style.display = 'none';
+            } else {
+                stagesExpandable.style.display = 'none';
+                noStagesText.style.display = 'block';
+            }
+
+            // Populate variables
+            const variablesExpandable = document.getElementById('runVariablesExpandable');
+            const variablesContainer = document.getElementById('runVariablesContainer');
+            const noVariablesText = document.getElementById('runNoVariablesText');
+            const variableEntries = data.variables ? Object.entries(data.variables) : [];
+            if (variableEntries.length > 0) {
+                variablesContainer.innerHTML = variableEntries.map(([key, value]) => \`
+                    <div class="run-modal-variable-item">
+                        <div class="run-modal-variable-name">\${key}</div>
+                        <input type="text" class="run-modal-input" id="run-var-\${key}" value="\${value}" data-var-name="\${key}">
+                    </div>
+                \`).join('');
+                variablesExpandable.style.display = 'block';
+                noVariablesText.style.display = 'none';
+            } else {
+                variablesExpandable.style.display = 'none';
+                noVariablesText.style.display = 'block';
+            }
+
             // Show modal
             runPipelineModal.classList.add('show');
         }
@@ -1850,6 +2097,42 @@ export class PipelineEditorPanel {
         runModalRunBtn.addEventListener('click', () => {
             const branch = runBranchSelect.value;
 
+            // Collect variables
+            const variables = {};
+            document.querySelectorAll('[id^="run-var-"]').forEach(input => {
+                const varName = input.getAttribute('data-var-name');
+                if (varName) {
+                    variables[varName] = input.value;
+                }
+            });
+
+            // Collect runtime parameters
+            const runtimeParameters = {};
+            if (runPipelineData.runtimeParameters) {
+                runPipelineData.runtimeParameters.forEach(param => {
+                    const paramId = 'run-param-' + param.name;
+                    const element = document.getElementById(paramId);
+                    if (element) {
+                        if (param.type === 'boolean') {
+                            runtimeParameters[param.name] = element.checked;
+                        } else {
+                            runtimeParameters[param.name] = element.value;
+                        }
+                    }
+                });
+            }
+
+            // Collect stages to skip (unchecked stages)
+            const stagesToSkip = [];
+            if (runPipelineData.stages && runPipelineData.stages.length > 0) {
+                runPipelineData.stages.forEach(stage => {
+                    const checkbox = document.getElementById('run-stage-' + stage.name);
+                    if (checkbox && !checkbox.checked) {
+                        stagesToSkip.push(stage.name);
+                    }
+                });
+            }
+
             runModalRunBtn.disabled = true;
             runModalRunBtn.innerHTML = '<span class="spinner"></span> Running...';
 
@@ -1857,9 +2140,9 @@ export class PipelineEditorPanel {
                 command: 'submitRunPipeline',
                 data: {
                     branch: branch,
-                    variables: {},
-                    stagesToSkip: [],
-                    runtimeParameters: {}
+                    variables: variables,
+                    stagesToSkip: stagesToSkip,
+                    runtimeParameters: runtimeParameters
                 }
             });
         });
