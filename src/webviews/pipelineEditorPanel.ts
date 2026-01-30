@@ -860,7 +860,7 @@ export class PipelineEditorPanel {
             border-radius: 0 4px 4px 0;
             padding: 8px 12px;
             cursor: pointer;
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
             transition: background 0.15s ease;
@@ -2146,17 +2146,10 @@ export class PipelineEditorPanel {
         </div>
         <div class="toolbar-group" style="margin-left: auto;">
             <button id="variablesBtn" class="variables-btn" title="Manage pipeline variables">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M7.5 1.75v1.5h-5a.75.75 0 000 1.5h5v1.5L10 4.5 7.5 1.75zm1 11.5v-1.5h5a.75.75 0 000-1.5h-5v-1.5L6 11.5l2.5 2.75z"/>
-                    <path fill-rule="evenodd" d="M12.5 6.25a.75.75 0 01.75.75v1.25h1.5a.75.75 0 010 1.5h-1.5V11a.75.75 0 01-1.5 0V9.75h-1.5a.75.75 0 010-1.5h1.5V7a.75.75 0 01.75-.75zm-9 0a.75.75 0 01.75.75v1.25h1.5a.75.75 0 010 1.5h-1.5V11a.75.75 0 01-1.5 0V9.75h-1.5a.75.75 0 010-1.5h1.5V7a.75.75 0 01.75-.75z"/>
-                </svg>
                 <span>Variables</span>
             </button>
             <div class="action-btn-group">
                 <button id="actionBtn" class="action-btn run" title="Run pipeline">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M3.5 2v12l10-6-10-6z"/>
-                    </svg>
                     <span id="actionBtnText">Run</span>
                 </button>
                 <button id="actionDropdownBtn" class="action-dropdown-btn" title="More run options">
@@ -2593,13 +2586,13 @@ export class PipelineEditorPanel {
                 // Show "Validate and save" button with dropdown
                 actionBtn.className = 'action-btn validate-save';
                 actionBtn.title = 'Validate and save to Azure DevOps repository';
-                actionBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg><span id="actionBtnText">Validate and save</span>';
+                actionBtn.innerHTML = '<span id="actionBtnText">Validate and save</span>';
                 actionDropdownBtn.style.display = 'flex';
             } else {
                 // Show "Run" button without dropdown
                 actionBtn.className = 'action-btn run';
                 actionBtn.title = 'Run pipeline';
-                actionBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 2v12l10-6-10-6z"/></svg><span id="actionBtnText">Run</span>';
+                actionBtn.innerHTML = '<span id="actionBtnText">Run</span>';
                 actionDropdownBtn.style.display = 'none';
                 actionBtn.style.borderRadius = '4px'; // Full rounded corners when no dropdown
             }
