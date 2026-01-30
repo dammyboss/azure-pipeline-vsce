@@ -1217,4 +1217,27 @@ export class AzureDevOpsClient {
             };
         }
     }
+
+    /**
+     * Create a new branch from an existing branch
+     */
+    async createBranch(repositoryId: string, newBranchName: string, sourceBranchName: string): Promise<void> {
+        // Get the commit SHA from the source branch
+        const sourceCommitSha = await this.getBranchCommitSha(repositoryId, sourceBranchName);
+
+        // Create the new branch by pushing a ref update
+        const refUpdates = [
+            {
+                name: `refs/heads/${newBranchName}`,
+                oldObjectId: '0000000000000000000000000000000000000000',
+                newObjectId: sourceCommitSha
+            }
+        ];
+
+        await this.axiosInstance.post(
+            `${this.organizationUrl}/${this.projectName}/_apis/git/repositories/${repositoryId}/refs`,
+            refUpdates,
+            { params: { 'api-version': '7.1' } }
+        );
+    }
 }

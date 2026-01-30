@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { Pipeline } from '../models/types';
+import { RunPipelineModal } from './runPipelineModal';
 
 /**
  * Pipeline Editor Panel
@@ -40,13 +41,13 @@ export class PipelineEditorPanel {
             async (message) => {
                 switch (message.command) {
                     case 'save':
-                        await this.savePipelineYaml(message.content, message.branch, message.commitMessage);
+                        await this.savePipelineYaml(message.content, message.branch, message.commitMessage, message.createNewBranch, message.newBranchName);
                         break;
                     case 'validate':
                         await this.validatePipelineYaml(message.content, message.branch);
                         break;
-                    case 'validateAndSave':
-                        await this.validateAndSavePipelineYaml(message.content, message.branch, message.commitMessage);
+                    case 'validateForModal':
+                        await this.validateForModal(message.content, message.branch);
                         break;
                     case 'close':
                         this._panel.dispose();
@@ -56,6 +57,9 @@ export class PipelineEditorPanel {
                         break;
                     case 'getBranches':
                         await this.sendBranches();
+                        break;
+                    case 'runPipeline':
+                        await this.openRunPipelineModal();
                         break;
                 }
             },
@@ -192,45 +196,47 @@ export class PipelineEditorPanel {
     }
 
     /**
-     * Validate and save pipeline YAML
+     * Validate pipeline for modal (returns validation result to show in modal)
      */
-    private async validateAndSavePipelineYaml(content: string, branch: string, commitMessage: string): Promise<void> {
+    private async validateForModal(content: string, branch: string): Promise<void> {
         try {
             this._panel.webview.postMessage({
-                command: 'validationStarted'
+                command: 'modalValidationStarted'
             });
 
-            // First validate
-            const validationResult = await this._client.validatePipelineYaml(
+            const result = await this._client.validatePipelineYaml(
                 this._pipeline.id,
                 content,
                 branch
             );
 
-            if (!validationResult.valid) {
-                this._panel.webview.postMessage({
-                    command: 'validationError',
-                    message: validationResult.error || 'Validation failed'
-                });
-                return;
-            }
-
-            // Then save
-            await this.savePipelineYaml(content, branch, commitMessage);
-
+            this._panel.webview.postMessage({
+                command: 'modalValidationResult',
+                valid: result.valid,
+                message: result.valid ? 'Pipeline is valid.' : (result.error || 'Validation failed')
+            });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             this._panel.webview.postMessage({
-                command: 'saveError',
+                command: 'modalValidationResult',
+                valid: false,
                 message: errorMessage
             });
         }
     }
 
     /**
+     * Open the run pipeline modal
+     */
+    private async openRunPipelineModal(): Promise<void> {
+        const branch = this._pipelineConfig?.defaultBranch || 'main';
+        await RunPipelineModal.show(this._client, this._pipeline, `refs/heads/${branch}`);
+    }
+
+    /**
      * Save pipeline YAML to repository
      */
-    private async savePipelineYaml(content: string, branch: string, commitMessage: string): Promise<void> {
+    private async savePipelineYaml(content: string, branch: string, commitMessage: string, createNewBranch?: boolean, newBranchName?: string): Promise<void> {
         if (!this._pipelineConfig) {
             vscode.window.showErrorMessage('Pipeline configuration not loaded');
             return;
@@ -244,9 +250,21 @@ export class PipelineEditorPanel {
                     cancellable: false
                 },
                 async () => {
+                    let targetBranch = branch;
+
+                    // If creating a new branch, create it first from the source branch
+                    if (createNewBranch && newBranchName) {
+                        targetBranch = newBranchName;
+                        await this._client.createBranch(
+                            this._pipelineConfig!.repositoryId,
+                            newBranchName,
+                            branch
+                        );
+                    }
+
                     await this._client.pushFileToRepository(
                         this._pipelineConfig!.repositoryId,
-                        branch,
+                        targetBranch,
                         this._pipelineConfig!.yamlPath,
                         content,
                         commitMessage || `Update ${this._pipeline.name} pipeline`,
@@ -259,7 +277,8 @@ export class PipelineEditorPanel {
                     // Notify webview of successful save
                     this._panel.webview.postMessage({
                         command: 'saveSuccess',
-                        message: 'Pipeline YAML saved successfully!'
+                        message: 'Pipeline YAML saved successfully!',
+                        newBranch: createNewBranch ? targetBranch : undefined
                     });
 
                     vscode.window.showInformationMessage(
@@ -268,7 +287,7 @@ export class PipelineEditorPanel {
                     ).then(selection => {
                         if (selection === 'View in Browser') {
                             const config = this._client.getConfig();
-                            const repoUrl = `${config.organizationUrl}/${config.projectName}/_git/${this._pipelineConfig!.repositoryName}?path=${encodeURIComponent(this._pipelineConfig!.yamlPath)}&version=GB${branch}`;
+                            const repoUrl = `${config.organizationUrl}/${config.projectName}/_git/${this._pipelineConfig!.repositoryName}?path=${encodeURIComponent(this._pipelineConfig!.yamlPath)}&version=GB${targetBranch}`;
                             vscode.env.openExternal(vscode.Uri.parse(repoUrl));
                         }
                     });
@@ -512,6 +531,43 @@ export class PipelineEditorPanel {
         .toolbar-input:focus {
             outline: none;
             border-color: var(--vscode-focusBorder, #007acc);
+        }
+
+        /* Primary Action Button */
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .action-btn.run {
+            background: var(--vscode-button-background, #0e639c);
+            color: var(--vscode-button-foreground, white);
+        }
+
+        .action-btn.run:hover {
+            background: var(--vscode-button-hoverBackground, #1177bb);
+        }
+
+        .action-btn.validate-save {
+            background: #388a34;
+            color: white;
+        }
+
+        .action-btn.validate-save:hover {
+            background: #2e7a2a;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         /* Modern Refresh Button */
@@ -851,6 +907,254 @@ export class PipelineEditorPanel {
             white-space: pre-wrap;
             word-break: break-word;
         }
+
+        /* Slideout Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 2000;
+        }
+
+        .modal-overlay.visible {
+            display: block;
+        }
+
+        /* Slideout Modal Panel */
+        .modal-panel {
+            position: fixed;
+            top: 0;
+            right: -450px;
+            width: 450px;
+            height: 100%;
+            background: var(--vscode-sideBar-background, #252526);
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            transition: right 0.3s ease;
+            z-index: 2001;
+        }
+
+        .modal-panel.visible {
+            right: 0;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--vscode-panel-border, #454545);
+        }
+
+        .modal-title-section {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--vscode-foreground, #cccccc);
+        }
+
+        .modal-subtitle {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground, #8b8b8b);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--vscode-foreground, #cccccc);
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: var(--vscode-toolbar-hoverBackground, #5a5d5e50);
+        }
+
+        .modal-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .modal-section {
+            margin-bottom: 24px;
+        }
+
+        .modal-section-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--vscode-foreground, #cccccc);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .validation-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 14px;
+            background: var(--vscode-input-background, #3c3c3c);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .validation-status.success {
+            background: rgba(56, 138, 52, 0.15);
+            color: #73c991;
+        }
+
+        .validation-status.error {
+            background: rgba(241, 76, 76, 0.15);
+            color: #f14c4c;
+        }
+
+        .validation-status.validating {
+            color: var(--vscode-descriptionForeground, #8b8b8b);
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--vscode-input-background, #3c3c3c);
+            color: var(--vscode-input-foreground, #cccccc);
+            border: 1px solid var(--vscode-input-border, #454545);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder, #007acc);
+        }
+
+        .modal-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--vscode-input-background, #3c3c3c);
+            color: var(--vscode-input-foreground, #cccccc);
+            border: 1px solid var(--vscode-input-border, #454545);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .modal-textarea:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder, #007acc);
+        }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .radio-option input[type="radio"] {
+            margin-top: 2px;
+            accent-color: var(--vscode-focusBorder, #007acc);
+        }
+
+        .radio-label {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .radio-label-text {
+            font-size: 13px;
+            color: var(--vscode-foreground, #cccccc);
+        }
+
+        .new-branch-input {
+            margin-top: 10px;
+            margin-left: 20px;
+        }
+
+        .new-branch-input.hidden {
+            display: none;
+        }
+
+        .modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 16px 20px;
+            border-top: 1px solid var(--vscode-panel-border, #454545);
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .modal-btn.cancel {
+            background: var(--vscode-button-secondaryBackground, #3a3d41);
+            color: var(--vscode-button-secondaryForeground, #cccccc);
+        }
+
+        .modal-btn.cancel:hover {
+            background: var(--vscode-button-secondaryHoverBackground, #45494e);
+        }
+
+        .modal-btn.save {
+            background: var(--vscode-button-background, #0e639c);
+            color: var(--vscode-button-foreground, white);
+        }
+
+        .modal-btn.save:hover {
+            background: var(--vscode-button-hoverBackground, #1177bb);
+        }
+
+        .modal-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .spinner.dark {
+            border-color: rgba(0, 0, 0, 0.2);
+            border-top-color: var(--vscode-descriptionForeground, #8b8b8b);
+        }
     </style>
 </head>
 <body>
@@ -878,41 +1182,18 @@ export class PipelineEditorPanel {
                 </div>
             </div>
         </div>
-        <div class="toolbar-group" style="flex: 1;">
-            <span class="toolbar-label">Commit message:</span>
-            <input type="text" id="commitMessage" class="toolbar-input"
-                   placeholder="Update pipeline configuration"
-                   value="Update ${this._pipeline.name} pipeline">
-        </div>
-        <div class="toolbar-group">
+        <div class="toolbar-group" style="margin-left: auto;">
             <button id="refreshBtn" class="refresh-btn" title="Refresh from repository">
                 <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
                     <path fill-rule="evenodd" d="M2.5 8a5.5 5.5 0 119.3 4l-.9-.9A4.5 4.5 0 108.5 3.5v2L6 3l2.5-2.5v2a5.5 5.5 0 010 11A5.5 5.5 0 012.5 8z"/>
                 </svg>
             </button>
-            <div class="split-button-wrapper">
-                <div class="split-button-container">
-                    <button id="validateSaveBtn" class="split-button-main" title="Validate and save to Azure DevOps repository">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
-                        </svg>
-                        Validate and save
-                    </button>
-                    <button id="splitDropdownBtn" class="split-button-dropdown" title="More options">
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                            <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 011.06 0L8 8.94l2.72-2.72a.75.75 0 111.06 1.06l-3.25 3.25a.75.75 0 01-1.06 0L4.22 7.28a.75.75 0 010-1.06z"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="split-button-menu" id="splitButtonMenu">
-                    <div class="split-button-menu-item" id="validateOnlyBtn">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zM0 8a8 8 0 1116 0A8 8 0 010 8zm8-3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 5zm0 8a1 1 0 100-2 1 1 0 000 2z"/>
-                        </svg>
-                        Save without validating
-                    </div>
-                </div>
-            </div>
+            <button id="actionBtn" class="action-btn run" title="Run pipeline">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M3.5 2v12l10-6-10-6z"/>
+                </svg>
+                <span id="actionBtnText">Run</span>
+            </button>
         </div>
     </div>
 
@@ -976,20 +1257,78 @@ export class PipelineEditorPanel {
 
     <div id="notification" class="notification hidden"></div>
 
+    <!-- Validate and Save Modal -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div id="modalPanel" class="modal-panel">
+            <div class="modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-title">Validate and save</div>
+                    <div class="modal-subtitle">Validate and commit ${this._pipelineConfig?.yamlPath || 'pipeline.yaml'} to the repository.</div>
+                </div>
+                <button class="modal-close" id="modalCloseBtn">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.28 3.22a.75.75 0 00-1.06 1.06L6.94 8l-3.72 3.72a.75.75 0 101.06 1.06L8 9.06l3.72 3.72a.75.75 0 101.06-1.06L9.06 8l3.72-3.72a.75.75 0 00-1.06-1.06L8 6.94 4.28 3.22z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-section">
+                    <div class="modal-section-label">Validation</div>
+                    <div id="modalValidationStatus" class="validation-status validating">
+                        <span class="spinner dark"></span>
+                        <span>Validating pipeline...</span>
+                    </div>
+                </div>
+                <div class="modal-section">
+                    <div class="modal-section-label">Commit message</div>
+                    <input type="text" id="modalCommitMessage" class="modal-input"
+                           placeholder="Update pipeline configuration"
+                           value="Update ${this._pipeline.name} pipeline">
+                </div>
+                <div class="modal-section">
+                    <div class="modal-section-label">Optional extended description</div>
+                    <textarea id="modalDescription" class="modal-textarea"
+                              placeholder="Add an optional extended description..."></textarea>
+                </div>
+                <div class="modal-section">
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="commitOption" value="direct" checked>
+                            <div class="radio-label">
+                                <span class="radio-label-text">Commit directly to the <strong id="currentBranchLabel">${defaultBranch}</strong> branch</span>
+                            </div>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="commitOption" value="newBranch">
+                            <div class="radio-label">
+                                <span class="radio-label-text">Create a new branch for this commit</span>
+                            </div>
+                        </label>
+                    </div>
+                    <div id="newBranchContainer" class="new-branch-input hidden">
+                        <input type="text" id="newBranchName" class="modal-input"
+                               placeholder="Enter new branch name">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="modalCancelBtn" class="modal-btn cancel">Cancel</button>
+                <button id="modalSaveBtn" class="modal-btn save">Save</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const vscode = acquireVsCodeApi();
         const editor = document.getElementById('editor');
-        const validateSaveBtn = document.getElementById('validateSaveBtn');
-        const splitDropdownBtn = document.getElementById('splitDropdownBtn');
-        const splitButtonMenu = document.getElementById('splitButtonMenu');
-        const validateOnlyBtn = document.getElementById('validateOnlyBtn');
+        const actionBtn = document.getElementById('actionBtn');
+        const actionBtnText = document.getElementById('actionBtnText');
         const refreshBtn = document.getElementById('refreshBtn');
         const branchDropdownTrigger = document.getElementById('branchDropdownTrigger');
         const branchDropdownMenu = document.getElementById('branchDropdownMenu');
         const branchSearch = document.getElementById('branchSearch');
         const branchList = document.getElementById('branchList');
         const selectedBranchName = document.getElementById('selectedBranchName');
-        const commitMessage = document.getElementById('commitMessage');
         const statusBar = document.getElementById('statusBar');
         const statusText = document.getElementById('statusText');
         const notification = document.getElementById('notification');
@@ -999,23 +1338,53 @@ export class PipelineEditorPanel {
         const validationIcon = document.getElementById('validationIcon');
         const closeValidation = document.getElementById('closeValidation');
 
+        // Modal elements
+        const modalOverlay = document.getElementById('modalOverlay');
+        const modalPanel = document.getElementById('modalPanel');
+        const modalCloseBtn = document.getElementById('modalCloseBtn');
+        const modalCancelBtn = document.getElementById('modalCancelBtn');
+        const modalSaveBtn = document.getElementById('modalSaveBtn');
+        const modalCommitMessage = document.getElementById('modalCommitMessage');
+        const modalDescription = document.getElementById('modalDescription');
+        const modalValidationStatus = document.getElementById('modalValidationStatus');
+        const currentBranchLabel = document.getElementById('currentBranchLabel');
+        const newBranchContainer = document.getElementById('newBranchContainer');
+        const newBranchName = document.getElementById('newBranchName');
+        const commitOptions = document.querySelectorAll('input[name="commitOption"]');
+
         let originalContent = \`${escapedYaml}\`;
         let isModified = false;
         let selectedBranch = '${defaultBranch}';
         let branches = ${branchesJson};
         let isValidating = false;
+        let modalValidationValid = false;
 
         // Initialize branches
         renderBranches(branches);
 
-        // Track modifications
+        // Track modifications and update button state
         editor.addEventListener('input', () => {
             const modified = editor.value !== originalContent;
             if (modified !== isModified) {
                 isModified = modified;
+                updateButtonState();
                 updateStatus();
             }
         });
+
+        function updateButtonState() {
+            if (isModified) {
+                // Show "Validate and save" button
+                actionBtn.className = 'action-btn validate-save';
+                actionBtn.title = 'Validate and save to Azure DevOps repository';
+                actionBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg><span id="actionBtnText">Validate and save</span>';
+            } else {
+                // Show "Run" button
+                actionBtn.className = 'action-btn run';
+                actionBtn.title = 'Run pipeline';
+                actionBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 2v12l10-6-10-6z"/></svg><span id="actionBtnText">Run</span>';
+            }
+        }
 
         function updateStatus() {
             if (isValidating) {
@@ -1053,6 +1422,113 @@ export class PipelineEditorPanel {
             validationPanel.classList.remove('visible');
         });
 
+        // Modal functions
+        function openModal() {
+            modalValidationValid = false;
+            modalSaveBtn.disabled = true;
+            currentBranchLabel.textContent = selectedBranch;
+            modalCommitMessage.value = 'Update ${this._pipeline.name} pipeline';
+            modalDescription.value = '';
+            document.querySelector('input[name="commitOption"][value="direct"]').checked = true;
+            newBranchContainer.classList.add('hidden');
+            newBranchName.value = '';
+
+            // Show validating state
+            modalValidationStatus.className = 'validation-status validating';
+            modalValidationStatus.innerHTML = '<span class="spinner dark"></span><span>Validating pipeline...</span>';
+
+            // Show modal with animation
+            modalOverlay.classList.add('visible');
+            setTimeout(() => modalPanel.classList.add('visible'), 10);
+
+            // Start validation
+            vscode.postMessage({
+                command: 'validateForModal',
+                content: editor.value,
+                branch: selectedBranch
+            });
+        }
+
+        function closeModal() {
+            modalPanel.classList.remove('visible');
+            setTimeout(() => modalOverlay.classList.remove('visible'), 300);
+        }
+
+        function updateModalValidationStatus(valid, message) {
+            modalValidationValid = valid;
+            modalSaveBtn.disabled = !valid;
+
+            if (valid) {
+                modalValidationStatus.className = 'validation-status success';
+                modalValidationStatus.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg><span>' + message + '</span>';
+            } else {
+                modalValidationStatus.className = 'validation-status error';
+                modalValidationStatus.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM0 8a8 8 0 1116 0A8 8 0 010 8zm8-3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 5zm0 8a1 1 0 100-2 1 1 0 000 2z"/></svg><span>' + message + '</span>';
+            }
+        }
+
+        // Modal event listeners
+        modalCloseBtn.addEventListener('click', closeModal);
+        modalCancelBtn.addEventListener('click', closeModal);
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) closeModal();
+        });
+
+        // Handle radio button change for new branch option
+        commitOptions.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.value === 'newBranch') {
+                    newBranchContainer.classList.remove('hidden');
+                    newBranchName.focus();
+                } else {
+                    newBranchContainer.classList.add('hidden');
+                }
+            });
+        });
+
+        // Handle save button
+        modalSaveBtn.addEventListener('click', () => {
+            if (!modalValidationValid) return;
+
+            const commitOption = document.querySelector('input[name="commitOption"]:checked').value;
+            const createNewBranch = commitOption === 'newBranch';
+            const newBranch = createNewBranch ? newBranchName.value.trim() : null;
+
+            if (createNewBranch && !newBranch) {
+                showNotification('Please enter a new branch name', 'error');
+                return;
+            }
+
+            // Combine commit message and description
+            let fullCommitMessage = modalCommitMessage.value.trim() || 'Update pipeline';
+            if (modalDescription.value.trim()) {
+                fullCommitMessage += '\\n\\n' + modalDescription.value.trim();
+            }
+
+            modalSaveBtn.disabled = true;
+            modalSaveBtn.innerHTML = '<span class="spinner"></span> Saving...';
+
+            vscode.postMessage({
+                command: 'save',
+                content: editor.value,
+                branch: selectedBranch,
+                commitMessage: fullCommitMessage,
+                createNewBranch: createNewBranch,
+                newBranchName: newBranch
+            });
+        });
+
+        // Main action button handler
+        actionBtn.addEventListener('click', () => {
+            if (isModified) {
+                // Open validate and save modal
+                openModal();
+            } else {
+                // Open run pipeline modal
+                vscode.postMessage({ command: 'runPipeline' });
+            }
+        });
+
         // Branch dropdown functionality
         function renderBranches(branchesToRender) {
             branchList.innerHTML = '';
@@ -1072,6 +1548,7 @@ export class PipelineEditorPanel {
                 item.addEventListener('click', () => {
                     selectedBranch = branch;
                     selectedBranchName.textContent = branch;
+                    currentBranchLabel.textContent = branch;
                     closeBranchDropdown();
                     renderBranches(branches);
                 });
@@ -1116,59 +1593,7 @@ export class PipelineEditorPanel {
             if (!branchDropdownTrigger.contains(e.target) && !branchDropdownMenu.contains(e.target)) {
                 closeBranchDropdown();
             }
-            if (!splitDropdownBtn.contains(e.target) && !splitButtonMenu.contains(e.target)) {
-                splitButtonMenu.classList.remove('open');
-            }
         });
-
-        // Split button dropdown
-        splitDropdownBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            splitButtonMenu.classList.toggle('open');
-        });
-
-        // Validate only (save without validating)
-        validateOnlyBtn.addEventListener('click', () => {
-            splitButtonMenu.classList.remove('open');
-            if (!editor.value.trim()) {
-                showNotification('Cannot save empty content', 'error');
-                return;
-            }
-            setButtonsLoading(true);
-            vscode.postMessage({
-                command: 'save',
-                content: editor.value,
-                branch: selectedBranch,
-                commitMessage: commitMessage.value
-            });
-        });
-
-        // Validate and save button
-        validateSaveBtn.addEventListener('click', () => {
-            if (!editor.value.trim()) {
-                showNotification('Cannot save empty content', 'error');
-                return;
-            }
-            setButtonsLoading(true);
-            vscode.postMessage({
-                command: 'validateAndSave',
-                content: editor.value,
-                branch: selectedBranch,
-                commitMessage: commitMessage.value
-            });
-        });
-
-        function setButtonsLoading(loading) {
-            isValidating = loading;
-            validateSaveBtn.disabled = loading;
-            splitDropdownBtn.disabled = loading;
-            if (loading) {
-                validateSaveBtn.innerHTML = '<span>Validating...</span>';
-            } else {
-                validateSaveBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg>Validate and save';
-            }
-            updateStatus();
-        }
 
         // Handle refresh button
         refreshBtn.addEventListener('click', () => {
@@ -1186,7 +1611,13 @@ export class PipelineEditorPanel {
         document.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
-                validateSaveBtn.click();
+                if (isModified) {
+                    openModal();
+                }
+            }
+            // Close modal with Escape
+            if (e.key === 'Escape' && modalOverlay.classList.contains('visible')) {
+                closeModal();
             }
         });
 
@@ -1203,25 +1634,43 @@ export class PipelineEditorPanel {
                     renderBranches(branches);
                     break;
                 case 'validationStarted':
-                    setButtonsLoading(true);
+                    isValidating = true;
+                    updateStatus();
                     break;
                 case 'validationSuccess':
-                    setButtonsLoading(false);
+                    isValidating = false;
+                    updateStatus();
                     showValidationResult(true, message.message);
                     break;
                 case 'validationError':
-                    setButtonsLoading(false);
+                    isValidating = false;
+                    updateStatus();
                     showValidationResult(false, message.message);
                     break;
+                case 'modalValidationStarted':
+                    // Handled by openModal
+                    break;
+                case 'modalValidationResult':
+                    updateModalValidationStatus(message.valid, message.message);
+                    break;
                 case 'saveSuccess':
-                    setButtonsLoading(false);
+                    closeModal();
                     originalContent = editor.value;
                     isModified = false;
+                    updateButtonState();
                     updateStatus();
                     showNotification(message.message, 'success');
+                    // Update branch if a new branch was created
+                    if (message.newBranch) {
+                        selectedBranch = message.newBranch;
+                        selectedBranchName.textContent = message.newBranch;
+                        // Refresh branches list
+                        vscode.postMessage({ command: 'getBranches' });
+                    }
                     break;
                 case 'saveError':
-                    setButtonsLoading(false);
+                    modalSaveBtn.disabled = false;
+                    modalSaveBtn.innerHTML = 'Save';
                     showNotification('Error: ' + message.message, 'error');
                     break;
             }
