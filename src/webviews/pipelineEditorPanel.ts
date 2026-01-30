@@ -323,29 +323,77 @@ export class PipelineEditorPanel {
         }
     }
 
-    private async fetchStages(): Promise<Array<{ name: string; displayName?: string }>> {
+    private async fetchStages(): Promise<Array<{ name: string; dependsOn?: string[] }>> {
         try {
             const yaml = await this._client.getPipelineYaml(this._pipeline.id);
-            const stages: Array<{ name: string; displayName?: string }> = [];
+
+            const stages: Array<{ name: string; dependsOn?: string[] }> = [];
             const lines = yaml.split('\n');
 
-            let currentStage: { name: string; displayName?: string } | null = null;
+            let currentStage: { name: string; dependsOn?: string[] } | null = null;
+            let inDependsOn = false;
+            let inStagesSection = false;
 
-            for (const line of lines) {
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                if (line.match(/^stages:\s*$/)) {
+                    inStagesSection = true;
+                    continue;
+                }
+
                 const stageMatch = line.match(/^\s*-\s*stage:\s*(.+)$/i);
                 if (stageMatch) {
                     if (currentStage) {
                         stages.push(currentStage);
                     }
                     const stageName = stageMatch[1].trim().replace(/['"]/g, '').replace(/#.*$/, '').trim();
-                    currentStage = { name: stageName };
+                    currentStage = {
+                        name: stageName
+                    };
+                    inDependsOn = false;
+                    continue;
                 }
 
-                if (currentStage && line.match(/^\s+displayName:\s*(.+)$/)) {
-                    const displayMatch = line.match(/^\s+displayName:\s*(.+)$/);
-                    if (displayMatch) {
-                        currentStage.displayName = displayMatch[1].trim().replace(/['"]/g, '');
+                if (currentStage && line.match(/^\s*dependsOn:\s*(.+)$/)) {
+                    const dependsMatch = line.match(/^\s*dependsOn:\s*(.+)$/);
+                    if (dependsMatch) {
+                        const depValue = dependsMatch[1].trim();
+                        if (depValue.startsWith('[')) {
+                            const deps = depValue
+                                .replace(/[\[\]]/g, '')
+                                .split(',')
+                                .map(d => d.trim().replace(/['"]/g, ''))
+                                .filter(d => d.length > 0);
+                            currentStage.dependsOn = deps;
+                        } else if (depValue.toLowerCase() !== 'null' && depValue !== '[]') {
+                            currentStage.dependsOn = [depValue.replace(/['"]/g, '')];
+                        }
+                        inDependsOn = false;
                     }
+                    continue;
+                }
+
+                if (currentStage && line.match(/^\s*dependsOn:\s*$/)) {
+                    inDependsOn = true;
+                    currentStage.dependsOn = [];
+                    continue;
+                }
+
+                if (inDependsOn && line.match(/^\s*-\s*(.+)$/)) {
+                    const itemMatch = line.match(/^\s*-\s*(.+)$/);
+                    if (itemMatch && currentStage) {
+                        const dep = itemMatch[1].trim().replace(/['"]/g, '');
+                        if (!currentStage.dependsOn) {
+                            currentStage.dependsOn = [];
+                        }
+                        currentStage.dependsOn.push(dep);
+                    }
+                    continue;
+                }
+
+                if (inDependsOn && line.match(/^\s*\w+:/)) {
+                    inDependsOn = false;
                 }
             }
 
