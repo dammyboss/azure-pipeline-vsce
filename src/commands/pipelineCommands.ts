@@ -10,17 +10,23 @@ import { RunPipelineModal } from '../webviews/runPipelineModal';
 import { RenamePipelineModal } from '../webviews/renamePipelineModal';
 import { PipelineRunsPanel } from '../webviews/pipelineRunsPanel';
 import { PipelineEditorPanel } from '../webviews/pipelineEditorPanel';
+import { TaskAssistantPanel } from '../webviews/taskAssistantPanel';
+import { TaskService } from '../services/taskService';
 
 /**
  * Pipeline command handlers
  */
 export class PipelineCommands {
+    private taskService: TaskService;
+
     constructor(
         private client: AzureDevOpsClient,
         private pipelinesProvider: PipelinesTreeProvider,
         private runsProvider: RunsTreeProvider,
         private stagesProvider: StagesTreeProvider
-    ) {}
+    ) {
+        this.taskService = new TaskService(client);
+    }
 
     /**
      * Register all pipeline commands
@@ -86,8 +92,24 @@ export class PipelineCommands {
             ),
             vscode.commands.registerCommand('azurePipelines.openStageInBrowser', (item: { record: TimelineRecord; run?: PipelineRun }) =>
                 this.openStageInBrowser(item.record, item.run)
+            ),
+            vscode.commands.registerCommand('azurePipelines.openTaskAssistant', () =>
+                this.openTaskAssistant()
             )
         );
+    }
+
+    /**
+     * Open Task Assistant panel
+     */
+    private async openTaskAssistant(): Promise<void> {
+        try {
+            const panel = TaskAssistantPanel.show(this.taskService);
+            vscode.window.showInformationMessage('Task Assistant opened. Click on a task to configure and add it to your pipeline.');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to open Task Assistant: ${errorMessage}`);
+        }
     }
 
     /**

@@ -232,6 +232,12 @@
         "title": "View Details",
         "category": "Azure Pipelines",
         "icon": "$(info)"
+      },
+      {
+        "command": "azurePipelines.openTaskAssistant",
+        "title": "Open Task Assistant",
+        "category": "Azure Pipelines",
+        "icon": "$(extensions)"
       }
     ],
     "menus": {
@@ -372,6 +378,11 @@
           "command": "azurePipelines.deleteServiceConnection",
           "when": "view == azurePipelinesServiceConnections && viewItem == serviceConnection",
           "group": "1_actions@2"
+        },
+        {
+          "command": "azurePipelines.openTaskAssistant",
+          "when": "view == azurePipelines",
+          "group": "navigation@4"
         }
       ],
       "commandPalette": [
@@ -393,6 +404,10 @@
         },
         {
           "command": "azurePipelines.refreshRuns",
+          "when": "azurePipelines.signedIn"
+        },
+        {
+          "command": "azurePipelines.openTaskAssistant",
           "when": "azurePipelines.signedIn"
         }
       ]

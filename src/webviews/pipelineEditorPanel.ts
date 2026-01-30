@@ -84,6 +84,9 @@ export class PipelineEditorPanel {
                     case 'deleteVariable':
                         await this.deleteVariable(message.variableName);
                         break;
+                    case 'openTaskAssistant':
+                        await this.openTaskAssistant();
+                        break;
                 }
             },
             null,
@@ -521,6 +524,13 @@ export class PipelineEditorPanel {
                 message: errorMessage
             });
         }
+    }
+
+    /**
+     * Open task assistant panel
+     */
+    private async openTaskAssistant(): Promise<void> {
+        await vscode.commands.executeCommand('azurePipelines.openTaskAssistant');
     }
 
     /**
@@ -1226,6 +1236,7 @@ export class PipelineEditorPanel {
         .info-bar {
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 10px;
             padding: 8px 16px;
             background: var(--vscode-editorWidget-background, #252526);
@@ -1263,6 +1274,34 @@ export class PipelineEditorPanel {
         .azure-repos-icon {
             flex-shrink: 0;
             border-radius: 3px;
+        }
+
+        .show-assistant-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: transparent;
+            color: var(--vscode-button-foreground, #ffffff);
+            border: 1px solid var(--vscode-button-border, #454545);
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .show-assistant-btn:hover {
+            background: var(--vscode-button-hoverBackground, #505050);
+            border-color: var(--vscode-button-border, #666);
+        }
+
+        .show-assistant-btn:active {
+            background: var(--vscode-button-background, #0078d4);
+        }
+
+        .show-assistant-btn svg {
+            flex-shrink: 0;
         }
 
         /* Validation result panel */
@@ -2371,6 +2410,13 @@ export class PipelineEditorPanel {
             <span class="info-separator">/</span>
             <span class="info-value file-name">${this._pipelineConfig?.yamlPath?.split('/').pop() || 'Loading...'}</span>
         </div>
+        <button id="showAssistantBtn" class="show-assistant-btn" title="Show task assistant">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M14.5 1h-13l-.5.5v9l.5.5h4.6l.1.1 1.9 3.8h.8l1.9-3.8.1-.1h4.6l.5-.5v-9l-.5-.5zm-6 10H6l-1.1 2.2L3 11H1.5V2h11v9h-4z"/>
+                <path d="M5 6h1v1H5V6zm2 0h1v1H7V6zm2 0h1v1H9V6z"/>
+            </svg>
+            <span>Show assistant</span>
+        </button>
     </div>
 
     <div id="validationPanel" class="validation-panel">
@@ -3260,6 +3306,12 @@ export class PipelineEditorPanel {
         // Handle Variables button
         variablesBtn.addEventListener('click', () => {
             vscode.postMessage({ command: 'openVariablesModal' });
+        });
+
+        // Handle Show Assistant button
+        const showAssistantBtn = document.getElementById('showAssistantBtn');
+        showAssistantBtn.addEventListener('click', () => {
+            vscode.postMessage({ command: 'openTaskAssistant' });
         });
 
         // Handle Action dropdown toggle

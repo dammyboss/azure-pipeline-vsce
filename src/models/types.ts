@@ -270,3 +270,115 @@ export interface RuntimeParameter {
     default?: string | boolean | number | any;
     values?: string[];  // For dropdown/select options
 }
+
+/**
+ * Task definition from Azure DevOps
+ * Represents a pipeline task that can be used in YAML
+ */
+export interface TaskDefinition {
+    id: string;
+    name: string;
+    friendlyName: string;
+    description: string;
+    helpMarkDown?: string;
+    helpUrl?: string;
+    category: TaskCategory;
+    author: string;
+    version: {
+        Major: number;
+        Minor: number;
+        Patch: number;
+    };
+    demands?: string[];
+    groups?: TaskGroup[];
+    inputs: TaskInput[];
+    execution?: any;
+    instanceNameFormat?: string;
+    deprecated?: boolean;
+    preview?: boolean;
+    visibility?: string[];
+    iconUrl?: string;
+    _links?: {
+        icon?: {
+            href: string;
+        };
+    };
+}
+
+/**
+ * Task input definition
+ */
+export interface TaskInput {
+    name: string;
+    type: TaskInputType;
+    label: string;
+    defaultValue?: string;
+    required: boolean;
+    helpMarkDown?: string;
+    visibleRule?: string;
+    groupName?: string;
+    options?: Record<string, string>;
+    properties?: Record<string, any>;
+}
+
+/**
+ * Task input types
+ */
+export type TaskInputType =
+    | 'string'
+    | 'multiLine'
+    | 'boolean'
+    | 'pickList'
+    | 'radio'
+    | 'filePath'
+    | 'secureFile'
+    | 'connectedService:AzureRM'
+    | 'connectedService:Generic'
+    | 'connectedService:GitHub'
+    | 'connectedService'
+    | 'identities'
+    | 'querycontrol';
+
+/**
+ * Task categories
+ */
+export type TaskCategory =
+    | 'Build'
+    | 'Utility'
+    | 'Test'
+    | 'Package'
+    | 'Deploy'
+    | 'Tool';
+
+/**
+ * Task group within a task
+ */
+export interface TaskGroup {
+    name: string;
+    displayName: string;
+    isExpanded?: boolean;
+}
+
+/**
+ * Installed extension information
+ */
+export interface InstalledExtension {
+    extensionId: string;
+    extensionName: string;
+    publisherId: string;
+    publisherName: string;
+    version: string;
+    flags: string[];
+    lastPublished: Date;
+    contributions?: ExtensionContribution[];
+}
+
+/**
+ * Extension contribution (tasks, etc.)
+ */
+export interface ExtensionContribution {
+    id: string;
+    type: string;
+    targets?: string[];
+    properties?: any;
+}

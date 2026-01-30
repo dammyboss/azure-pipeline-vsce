@@ -17,7 +17,9 @@ import {
     AgentPool,
     Agent,
     PipelineRunOptions,
-    RuntimeParameter
+    RuntimeParameter,
+    TaskDefinition,
+    InstalledExtension
 } from '../models/types';
 
 /**
@@ -1302,5 +1304,63 @@ export class AzureDevOpsClient {
             refUpdates,
             { params: { 'api-version': '7.1' } }
         );
+    }
+
+    // ==================== Tasks & Extensions ====================
+
+    /**
+     * Get all available task definitions
+     * This uses an undocumented but functional API endpoint
+     */
+    async getTaskDefinitions(): Promise<TaskDefinition[]> {
+        try {
+            const response = await this.axiosInstance.get(
+                `${this.organizationUrl}/_apis/distributedtask/tasks`,
+                { params: { 'api-version': '7.1' } }
+            );
+            return response.data.value || [];
+        } catch (error: any) {
+            // If the undocumented API fails, return empty array
+            console.warn('Failed to fetch task definitions:', error.message);
+            return [];
+        }
+    }
+
+    /**
+     * Get a specific task definition by ID
+     */
+    async getTaskDefinition(taskId: string): Promise<TaskDefinition | null> {
+        try {
+            const response = await this.axiosInstance.get(
+                `${this.organizationUrl}/_apis/distributedtask/tasks/${taskId}`,
+                { params: { 'api-version': '7.1' } }
+            );
+            return response.data;
+        } catch (error: any) {
+            console.warn(`Failed to fetch task definition ${taskId}:`, error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Get all installed extensions in the organization
+     */
+    async getInstalledExtensions(): Promise<InstalledExtension[]> {
+        try {
+            const response = await this.axiosInstance.get(
+                `${this.organizationUrl}/_apis/extensionmanagement/installedextensions`,
+                {
+                    params: {
+                        'api-version': '7.2',
+                        'includeDisabledExtensions': true,
+                        'includeErrors': false
+                    }
+                }
+            );
+            return response.data.value || [];
+        } catch (error: any) {
+            console.warn('Failed to fetch installed extensions:', error.message);
+            return [];
+        }
     }
 }
