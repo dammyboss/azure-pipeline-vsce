@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { Pipeline } from '../models/types';
-import { RunPipelineModal } from './runPipelineModal';
 
 /**
  * Pipeline Editor Panel
@@ -59,7 +58,10 @@ export class PipelineEditorPanel {
                         await this.sendBranches();
                         break;
                     case 'runPipeline':
-                        await this.openRunPipelineModal();
+                        await this.openRunPipelineForm();
+                        break;
+                    case 'submitRunPipeline':
+                        await this.handleRunPipeline(message.data);
                         break;
                 }
             },
@@ -226,11 +228,143 @@ export class PipelineEditorPanel {
     }
 
     /**
-     * Open the run pipeline modal
+     * Open the run pipeline form (slideout)
      */
-    private async openRunPipelineModal(): Promise<void> {
-        const branch = this._pipelineConfig?.defaultBranch || 'main';
-        await RunPipelineModal.show(this._client, this._pipeline, `refs/heads/${branch}`);
+    private async openRunPipelineForm(): Promise<void> {
+        try {
+            if (!this._pipelineConfig) {
+                vscode.window.showErrorMessage('Pipeline configuration not loaded');
+                return;
+            }
+
+            const [branches, variables, stages, runtimeParameters] = await Promise.all([
+                this.fetchBranches(),
+                this.fetchVariables(),
+                this.fetchStages(),
+                this.fetchRuntimeParameters()
+            ]);
+
+            this._panel.webview.postMessage({
+                command: 'showRunPipelineForm',
+                data: {
+                    pipeline: this._pipeline,
+                    branches,
+                    variables,
+                    stages,
+                    runtimeParameters,
+                    defaultBranch: this._pipelineConfig.defaultBranch
+                }
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to open run pipeline form: ${error}`);
+        }
+    }
+
+    /**
+     * Handle running the pipeline
+     */
+    private async handleRunPipeline(data: any): Promise<void> {
+        try {
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Starting pipeline run...',
+                    cancellable: false
+                },
+                async () => {
+                    const run = await this._client.runPipeline(this._pipeline.id, {
+                        branch: data.branch,
+                        variables: { ...data.variables, ...data.runtimeParameters },
+                        stagesToSkip: data.stagesToSkip
+                    });
+
+                    this._panel.webview.postMessage({
+                        command: 'runPipelineSuccess',
+                        run: run
+                    });
+
+                    const viewRun = await vscode.window.showInformationMessage(
+                        `Pipeline run #${run.buildNumber || run.id} started successfully`,
+                        'View Run'
+                    );
+
+                    if (viewRun === 'View Run') {
+                        vscode.commands.executeCommand('azure-pipelines.viewRun', run);
+                    }
+                }
+            );
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            this._panel.webview.postMessage({
+                command: 'runPipelineError',
+                message: errorMessage
+            });
+            vscode.window.showErrorMessage(`Failed to start pipeline run: ${errorMessage}`);
+        }
+    }
+
+    private async fetchBranches(): Promise<string[]> {
+        try {
+            if (!this._pipelineConfig?.repositoryId) {
+                return [this._pipelineConfig?.defaultBranch || 'main'];
+            }
+            const branches = await this._client.getBranches(this._pipelineConfig.repositoryId);
+            return branches.map(b => b.name.replace('refs/heads/', ''));
+        } catch (error) {
+            return [this._pipelineConfig?.defaultBranch || 'main'];
+        }
+    }
+
+    private async fetchVariables(): Promise<Record<string, any>> {
+        try {
+            return await this._client.getPipelineVariables(this._pipeline.id);
+        } catch (error) {
+            return {};
+        }
+    }
+
+    private async fetchStages(): Promise<Array<{ name: string; displayName?: string }>> {
+        try {
+            const yaml = await this._client.getPipelineYaml(this._pipeline.id);
+            const stages: Array<{ name: string; displayName?: string }> = [];
+            const lines = yaml.split('\n');
+
+            let currentStage: { name: string; displayName?: string } | null = null;
+
+            for (const line of lines) {
+                const stageMatch = line.match(/^\s*-\s*stage:\s*(.+)$/i);
+                if (stageMatch) {
+                    if (currentStage) {
+                        stages.push(currentStage);
+                    }
+                    const stageName = stageMatch[1].trim().replace(/['"]/g, '').replace(/#.*$/, '').trim();
+                    currentStage = { name: stageName };
+                }
+
+                if (currentStage && line.match(/^\s+displayName:\s*(.+)$/)) {
+                    const displayMatch = line.match(/^\s+displayName:\s*(.+)$/);
+                    if (displayMatch) {
+                        currentStage.displayName = displayMatch[1].trim().replace(/['"]/g, '');
+                    }
+                }
+            }
+
+            if (currentStage) {
+                stages.push(currentStage);
+            }
+
+            return stages;
+        } catch (error) {
+            return [];
+        }
+    }
+
+    private async fetchRuntimeParameters(): Promise<any[]> {
+        try {
+            return await this._client.getPipelineRuntimeParameters(this._pipeline.id);
+        } catch (error) {
+            return [];
+        }
     }
 
     /**
@@ -1155,6 +1289,130 @@ export class PipelineEditorPanel {
             border-color: rgba(0, 0, 0, 0.2);
             border-top-color: var(--vscode-descriptionForeground, #8b8b8b);
         }
+
+        /* Run Pipeline Modal */
+        .run-pipeline-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 3000;
+        }
+
+        .run-pipeline-modal.show {
+            display: block;
+        }
+
+        .run-modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .run-modal-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 550px;
+            max-width: 90vw;
+            background: var(--vscode-sideBar-background, #252526);
+            border-left: 1px solid var(--vscode-panel-border, #454545);
+            display: flex;
+            flex-direction: column;
+            animation: slideInRight 0.3s ease-out;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .run-modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--vscode-panel-border, #454545);
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
+
+        .run-modal-title-section {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .run-modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .run-modal-subtitle {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground, #8b8b8b);
+        }
+
+        .run-modal-close {
+            background: none;
+            border: none;
+            color: var(--vscode-foreground, #cccccc);
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .run-modal-close:hover {
+            background: var(--vscode-toolbar-hoverBackground, #5a5d5e50);
+        }
+
+        .run-modal-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .run-modal-section {
+            margin-bottom: 20px;
+        }
+
+        .run-modal-section-label {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .run-modal-select,
+        .run-modal-input {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--vscode-input-background, #3c3c3c);
+            color: var(--vscode-input-foreground, #cccccc);
+            border: 1px solid var(--vscode-input-border, #454545);
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        .run-modal-select:focus,
+        .run-modal-input:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder, #007acc);
+        }
+
+        .run-modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 16px 20px;
+            border-top: 1px solid var(--vscode-panel-border, #454545);
+        }
     </style>
 </head>
 <body>
@@ -1314,6 +1572,36 @@ export class PipelineEditorPanel {
             <div class="modal-footer">
                 <button id="modalCancelBtn" class="modal-btn cancel">Cancel</button>
                 <button id="modalSaveBtn" class="modal-btn save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Run Pipeline Modal -->
+    <div id="runPipelineModal" class="run-pipeline-modal">
+        <div class="run-modal-overlay" id="runModalOverlay"></div>
+        <div class="run-modal-panel">
+            <div class="run-modal-header">
+                <div class="run-modal-title-section">
+                    <div class="run-modal-title">Run pipeline</div>
+                    <div class="run-modal-subtitle">Configure and start a new pipeline run</div>
+                </div>
+                <button class="run-modal-close" id="runModalCloseBtn">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.28 3.22a.75.75 0 00-1.06 1.06L6.94 8l-3.72 3.72a.75.75 0 101.06 1.06L8 9.06l3.72 3.72a.75.75 0 101.06-1.06L9.06 8l3.72-3.72a.75.75 0 00-1.06-1.06L8 6.94 4.28 3.22z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="run-modal-body">
+                <div class="run-modal-section">
+                    <div class="run-modal-section-label">Branch</div>
+                    <select class="run-modal-select" id="runBranchSelect">
+                        <option value="${defaultBranch}">${defaultBranch}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="run-modal-footer">
+                <button id="runModalCancelBtn" class="modal-btn cancel">Cancel</button>
+                <button id="runModalRunBtn" class="modal-btn save">Run</button>
             </div>
         </div>
     </div>
@@ -1524,9 +1812,56 @@ export class PipelineEditorPanel {
                 // Open validate and save modal
                 openModal();
             } else {
-                // Open run pipeline modal
+                // Open run pipeline form
                 vscode.postMessage({ command: 'runPipeline' });
             }
+        });
+
+        // Run Pipeline Modal
+        const runPipelineModal = document.getElementById('runPipelineModal');
+        const runModalOverlay = document.getElementById('runModalOverlay');
+        const runModalCloseBtn = document.getElementById('runModalCloseBtn');
+        const runModalCancelBtn = document.getElementById('runModalCancelBtn');
+        const runModalRunBtn = document.getElementById('runModalRunBtn');
+        const runBranchSelect = document.getElementById('runBranchSelect');
+
+        let runPipelineData = null;
+
+        function openRunPipelineModal(data) {
+            runPipelineData = data;
+
+            // Populate branches
+            runBranchSelect.innerHTML = data.branches.map(branch =>
+                \`<option value="\${branch}" \${branch === data.defaultBranch ? 'selected' : ''}>\${branch}</option>\`
+            ).join('');
+
+            // Show modal
+            runPipelineModal.classList.add('show');
+        }
+
+        function closeRunPipelineModal() {
+            runPipelineModal.classList.remove('show');
+        }
+
+        runModalCloseBtn.addEventListener('click', closeRunPipelineModal);
+        runModalCancelBtn.addEventListener('click', closeRunPipelineModal);
+        runModalOverlay.addEventListener('click', closeRunPipelineModal);
+
+        runModalRunBtn.addEventListener('click', () => {
+            const branch = runBranchSelect.value;
+
+            runModalRunBtn.disabled = true;
+            runModalRunBtn.innerHTML = '<span class="spinner"></span> Running...';
+
+            vscode.postMessage({
+                command: 'submitRunPipeline',
+                data: {
+                    branch: branch,
+                    variables: {},
+                    stagesToSkip: [],
+                    runtimeParameters: {}
+                }
+            });
         });
 
         // Branch dropdown functionality
@@ -1671,6 +2006,20 @@ export class PipelineEditorPanel {
                 case 'saveError':
                     modalSaveBtn.disabled = false;
                     modalSaveBtn.innerHTML = 'Save';
+                    showNotification('Error: ' + message.message, 'error');
+                    break;
+                case 'showRunPipelineForm':
+                    openRunPipelineModal(message.data);
+                    break;
+                case 'runPipelineSuccess':
+                    closeRunPipelineModal();
+                    runModalRunBtn.disabled = false;
+                    runModalRunBtn.innerHTML = 'Run';
+                    showNotification('Pipeline run started successfully!', 'success');
+                    break;
+                case 'runPipelineError':
+                    runModalRunBtn.disabled = false;
+                    runModalRunBtn.innerHTML = 'Run';
                     showNotification('Error: ' + message.message, 'error');
                     break;
             }
