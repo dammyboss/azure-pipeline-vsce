@@ -308,11 +308,23 @@ export class PipelineEditorPanel {
                     cancellable: false
                 },
                 async () => {
-                    const run = await this._client.runPipeline(this._pipeline.id, {
-                        branch: data.branch,
-                        variables: { ...data.variables, ...data.runtimeParameters },
-                        stagesToSkip: data.stagesToSkip
-                    });
+                    const options: any = { branch: data.branch };
+
+                    // Add template parameters (runtime parameters) if provided
+                    if (data.templateParameters && Object.keys(data.templateParameters).length > 0) {
+                        options.templateParameters = data.templateParameters;
+                    }
+
+                    // Add variables (only those with allowOverride: true) if provided
+                    if (data.variables && Object.keys(data.variables).length > 0) {
+                        options.variables = data.variables;
+                    }
+
+                    if (data.stagesToSkip) {
+                        options.stagesToSkip = data.stagesToSkip;
+                    }
+
+                    const run = await this._client.runPipeline(this._pipeline.id, options);
 
                     this._panel.webview.postMessage({
                         command: 'runPipelineSuccess',
@@ -353,8 +365,23 @@ export class PipelineEditorPanel {
 
     private async fetchVariables(): Promise<Record<string, any>> {
         try {
-            return await this._client.getPipelineVariables(this._pipeline.id);
+            const allVars = await this._client.getPipelineVariables(this._pipeline.id);
+            console.log('[Azure Pipelines] Raw variables from API:', JSON.stringify(
+                Object.fromEntries(
+                    Object.entries(allVars).map(([k, v]) => [k, { allowOverride: (v as any)?.allowOverride, value: (v as any)?.isSecret ? '***' : (v as any)?.value }])
+                )
+            ));
+            // Only show variables marked as "Settable at queue time" (allowOverride: true)
+            const filtered: Record<string, any> = {};
+            for (const [key, value] of Object.entries(allVars)) {
+                if (value && (value as any).allowOverride === true) {
+                    filtered[key] = value;
+                }
+            }
+            console.log('[Azure Pipelines] Filtered variables (allowOverride === true):', Object.keys(filtered));
+            return filtered;
         } catch (error) {
+            console.error('[Azure Pipelines] Error fetching variables:', error);
             return {};
         }
     }
@@ -3121,16 +3148,20 @@ export class PipelineEditorPanel {
                 noStagesText.style.display = 'block';
             }
 
-            // Populate variables
+            // Populate variables (already filtered for allowOverride === true on server side)
             const variablesExpandable = document.getElementById('runVariablesExpandable');
             const variablesContainer = document.getElementById('runVariablesContainer');
             const noVariablesText = document.getElementById('runNoVariablesText');
             const variableEntries = data.variables ? Object.entries(data.variables) : [];
+
+            // Debug logging for variables (same as runDetailsPanel)
+            console.log('[Azure Pipelines] Variables received in form (already filtered for allowOverride):', Object.keys(data.variables || {}));
+
             if (variableEntries.length > 0) {
                 variablesContainer.innerHTML = variableEntries.map(([key, value]) => \`
                     <div class="modal-variable-item">
                         <div class="modal-variable-name">\${key}</div>
-                        <input type="text" class="modal-input" id="run-var-\${key}" value="\${value}" data-var-name="\${key}">
+                        <input type="text" class="modal-input" id="run-var-\${key}" value="\${value.isSecret ? '***' : (value.value || value)}" data-var-name="\${key}">
                     </div>
                 \`).join('');
                 variablesExpandable.style.display = 'block';
@@ -3202,7 +3233,7 @@ export class PipelineEditorPanel {
                 }
             });
 
-            // Collect variables (legacy pipeline variables)
+            // Collect variables (only those with allowOverride === true)
             const variables = {};
             document.querySelectorAll('[id^="run-var-"]').forEach(input => {
                 const key = input.id.replace('run-var-', '');
@@ -3211,8 +3242,12 @@ export class PipelineEditorPanel {
                 }
             });
 
-            // Merge template parameters with variables for the API call
-            const allVariables = { ...variables, ...templateParameters };
+            // Debug logging - show what we're sending separately (same as runDetailsPanel)
+            console.log('[Azure Pipelines] Submitting pipeline with:');
+            console.log('  - Template Parameters (runtime params):', Object.keys(templateParameters));
+            console.log('  - Variables (allowOverride only):', Object.keys(variables));
+            console.log('Template Parameter values:', templateParameters);
+            console.log('Variable values:', variables);
 
             const allStages = runPipelineData?.stages ? runPipelineData.stages.map(s => s.name) : [];
             const stagesToSkip = allStages.filter(s => !stagesToRun.includes(s));
@@ -3220,12 +3255,14 @@ export class PipelineEditorPanel {
             runModalRunBtn.disabled = true;
             runModalRunBtn.innerHTML = '<span class="spinner"></span> Running...';
 
+            // Send templateParameters and variables SEPARATELY
             vscode.postMessage({
                 command: 'submitRunPipeline',
                 data: {
                     branch: branch,
                     commit: commit || undefined,
-                    variables: Object.keys(allVariables).length > 0 ? allVariables : undefined,
+                    templateParameters: Object.keys(templateParameters).length > 0 ? templateParameters : undefined,
+                    variables: Object.keys(variables).length > 0 ? variables : undefined,
                     stagesToSkip: stagesToSkip.length > 0 ? stagesToSkip : undefined
                 }
             });

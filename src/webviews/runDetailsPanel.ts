@@ -440,6 +440,12 @@ export class RunDetailsPanel {
 
             const options: any = { branch: data.branch };
 
+            // Add template parameters (runtime parameters) if provided
+            if (data.templateParameters && Object.keys(data.templateParameters).length > 0) {
+                options.templateParameters = data.templateParameters;
+            }
+
+            // Add variables (only those with allowOverride: true) if provided
             if (data.variables && Object.keys(data.variables).length > 0) {
                 options.variables = data.variables;
             }
@@ -1973,6 +1979,11 @@ export class RunDetailsPanel {
             const modal = document.getElementById('runPipelineModal');
             const { branches, variables, stages, runtimeParameters, defaultBranch } = data;
 
+            // Debug logging for variables
+            console.log('[Azure Pipelines] Raw variables from API:', variables);
+            const settableVars = Object.entries(variables || {}).filter(([k, v]) => v && v.allowOverride === true);
+            console.log('[Azure Pipelines] Filtered variables (allowOverride === true):', settableVars.map(([k]) => k));
+
             // Populate branches
             const branchSelect = document.getElementById('modalBranchSelect');
             branchSelect.innerHTML = branches.map(branch =>
@@ -2032,14 +2043,20 @@ export class RunDetailsPanel {
                 document.getElementById('modalNoStagesText').style.display = 'none';
             }
 
-            // Populate variables
+            // Populate variables - only show those with allowOverride === true
             const variablesContainer = document.getElementById('modalVariablesGroup');
-            const varEntries = Object.entries(variables || {});
-            if (varEntries.length > 0) {
-                variablesContainer.innerHTML = varEntries.map(([key, value]) => \`
+            const allVarEntries = Object.entries(variables || {});
+
+            // Filter to only show variables that are settable at queue time
+            const settableVarEntries = allVarEntries.filter(([key, value]) => {
+                return value && value.allowOverride === true;
+            });
+
+            if (settableVarEntries.length > 0) {
+                variablesContainer.innerHTML = settableVarEntries.map(([key, value]) => \`
                     <div class="modal-variable-item">
                         <div class="modal-variable-name">\${key}</div>
-                        <input type="text" class="modal-input" id="modal-var-\${key}" value="\${value.value || ''}" placeholder="Enter value">
+                        <input type="text" class="modal-input" id="modal-var-\${key}" value="\${value.isSecret ? '***' : (value.value || '')}" placeholder="Enter value" data-allow-override="true">
                     </div>
                 \`).join('');
                 document.getElementById('modalVariablesSection').style.display = 'block';
@@ -2048,6 +2065,9 @@ export class RunDetailsPanel {
                 document.getElementById('modalVariablesSection').style.display = 'none';
                 document.getElementById('modalNoVariablesText').style.display = 'block';
             }
+
+            // Store all variables metadata for later filtering during submission
+            modal.dataset.variablesMetadata = JSON.stringify(variables);
 
             // Store all stages for later (convert to just names if needed)
             const stageNames = stages && stages.length > 0 ? stages.map(s => s.name || s) : [];
@@ -2078,6 +2098,7 @@ export class RunDetailsPanel {
         }
 
         function submitRunPipeline() {
+            const modal = document.getElementById('runPipelineModal');
             const branch = document.getElementById('modalBranchSelect').value;
             const commit = document.getElementById('modalCommitInput').value.trim();
             const enableDiagnostics = document.getElementById('modalEnableDiagnostics').checked;
@@ -2112,22 +2133,29 @@ export class RunDetailsPanel {
                 }
             });
 
-            // Collect variables (legacy pipeline variables)
+            // Collect variables (only those with allowOverride === true)
             const variables = {};
+            const variablesMetadata = JSON.parse(modal.dataset.variablesMetadata || '{}');
+
             document.querySelectorAll('[id^="modal-var-"]').forEach(input => {
                 const key = input.id.replace('modal-var-', '');
-                if (input.value) {
+                // Only include if it has allowOverride === true
+                if (input.value && variablesMetadata[key] && variablesMetadata[key].allowOverride === true) {
                     variables[key] = input.value;
                 }
             });
 
-            // Merge template parameters with variables for the API call
-            const allVariables = { ...variables, ...templateParameters };
+            // Debug logging - show what we're sending separately
+            console.log('[Azure Pipelines] Submitting pipeline with:');
+            console.log('  - Template Parameters (runtime params):', Object.keys(templateParameters));
+            console.log('  - Variables (allowOverride only):', Object.keys(variables));
+            console.log('Template Parameter values:', templateParameters);
+            console.log('Variable values:', variables);
 
-            const modal = document.getElementById('runPipelineModal');
             const allStagesData = JSON.parse(modal.dataset.allStages || '[]');
             const allStages = allStagesData.map ? allStagesData.map(s => s.name || s) : allStagesData;
 
+            // Send templateParameters and variables SEPARATELY
             vscode.postMessage({
                 command: 'runPipeline',
                 data: {
@@ -2135,7 +2163,8 @@ export class RunDetailsPanel {
                     commit: commit || undefined,
                     stagesToRun,
                     allStages,
-                    variables: Object.keys(allVariables).length > 0 ? allVariables : undefined,
+                    templateParameters: Object.keys(templateParameters).length > 0 ? templateParameters : undefined,
+                    variables: Object.keys(variables).length > 0 ? variables : undefined,
                     enableDiagnostics
                 }
             });

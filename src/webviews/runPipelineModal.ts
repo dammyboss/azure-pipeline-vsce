@@ -144,8 +144,23 @@ export class RunPipelineModal {
 
     private async fetchVariables(): Promise<Record<string, any>> {
         try {
-            return await this.client.getPipelineVariables(this.pipeline.id);
+            const allVars = await this.client.getPipelineVariables(this.pipeline.id);
+            console.log('[Azure Pipelines] Raw variables from API:', JSON.stringify(
+                Object.fromEntries(
+                    Object.entries(allVars).map(([k, v]) => [k, { allowOverride: (v as any)?.allowOverride, value: (v as any)?.isSecret ? '***' : (v as any)?.value }])
+                )
+            ));
+            // Only show variables marked as "Settable at queue time" (allowOverride: true)
+            const filtered: Record<string, any> = {};
+            for (const [key, value] of Object.entries(allVars)) {
+                if (value && (value as any).allowOverride === true) {
+                    filtered[key] = value;
+                }
+            }
+            console.log('[Azure Pipelines] Filtered variables (allowOverride === true):', Object.keys(filtered));
+            return filtered;
         } catch (error) {
+            console.error('[Azure Pipelines] Error fetching variables:', error);
             return {};
         }
     }
@@ -245,6 +260,10 @@ export class RunPipelineModal {
     private async handleRunPipeline(data: any) {
         try {
             const options: any = { branch: data.branch };
+
+            if (data.templateParameters && Object.keys(data.templateParameters).length > 0) {
+                options.templateParameters = data.templateParameters;
+            }
 
             if (data.variables && Object.keys(data.variables).length > 0) {
                 options.variables = data.variables;
@@ -663,17 +682,21 @@ export class RunPipelineModal {
                 }
             });
 
-            // Collect variables (legacy pipeline variables)
-            const variables = {};
+            // Collect queue-time variables (allowOverride variables only)
+            const queueTimeVariables = {};
             document.querySelectorAll('[id^="modal-var-"]').forEach(input => {
                 const key = input.id.replace('modal-var-', '');
                 if (input.value) {
-                    variables[key] = input.value;
+                    queueTimeVariables[key] = input.value;
                 }
             });
 
-            // Merge template parameters with variables for the API call
-            const allVariables = { ...variables, ...templateParameters };
+            // Debug logging - show what we're sending separately (same as runDetailsPanel)
+            console.log('[Azure Pipelines] Submitting pipeline with:');
+            console.log('  - Template Parameters (runtime params):', Object.keys(templateParameters));
+            console.log('  - Variables (allowOverride only):', Object.keys(queueTimeVariables));
+            console.log('Template Parameter values:', templateParameters);
+            console.log('Variable values:', queueTimeVariables);
 
             const allStages = pipelineData?.stages ? pipelineData.stages.map(s => s.name) : [];
 
@@ -684,7 +707,8 @@ export class RunPipelineModal {
                     commit: commit || undefined,
                     stagesToRun,
                     allStages,
-                    variables: Object.keys(allVariables).length > 0 ? allVariables : undefined,
+                    templateParameters: Object.keys(templateParameters).length > 0 ? templateParameters : undefined,
+                    variables: Object.keys(queueTimeVariables).length > 0 ? queueTimeVariables : undefined,
                     enableDiagnostics
                 }
             });
@@ -774,6 +798,9 @@ export class RunPipelineModal {
 
         function renderForm(data) {
             const { branches, variables, stages, runtimeParameters, defaultBranch, pipeline } = data;
+
+            // Debug logging for variables (same as runDetailsPanel)
+            console.log('[Azure Pipelines] Variables received in form (already filtered for allowOverride):', Object.keys(variables || {}));
 
             const content = document.getElementById('modalContent');
             content.innerHTML = \`
