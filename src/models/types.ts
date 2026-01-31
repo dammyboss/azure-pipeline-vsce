@@ -255,6 +255,7 @@ export interface Issue {
 
 export interface PipelineRunOptions {
     branch?: string;
+    templateParameters?: Record<string, string>;
     variables?: Record<string, string>;
     stagesToSkip?: string[];
 }

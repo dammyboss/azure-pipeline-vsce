@@ -424,8 +424,16 @@ export class AzureDevOpsClient {
             body.resources.repositories.self.refName = `refs/heads/${options.branch}`;
         }
 
+        if (options?.templateParameters) {
+            body.templateParameters = options.templateParameters;
+        }
+
         if (options?.variables) {
-            body.templateParameters = options.variables;
+            const vars: Record<string, { value: string; isSecret: boolean }> = {};
+            for (const [key, value] of Object.entries(options.variables)) {
+                vars[key] = { value, isSecret: false };
+            }
+            body.variables = vars;
         }
 
         if (options?.stagesToSkip) {
@@ -575,29 +583,49 @@ export class AzureDevOpsClient {
             if (response.data.configuration?.path) {
                 const repoId = response.data.configuration.repository?.id;
                 const path = response.data.configuration.path;
-                const branch = response.data.configuration.repository?.ref || 'refs/heads/main';
+                const rawRef = response.data.configuration.repository?.ref;
+                const branchName = rawRef ? rawRef.replace('refs/heads/', '') : undefined;
 
+                // Ensure path starts with /
+                const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+                // Try 1: fetch with the configured branch (if ref was provided)
+                if (branchName) {
+                    try {
+                        return await this.fetchFileFromRepo(repoId, normalizedPath, branchName);
+                    } catch (fileError: any) {
+                        console.warn(`[Azure Pipelines] Failed to fetch YAML at "${normalizedPath}" on branch "${branchName}": ${fileError.response?.status || ''} ${fileError.message || fileError}`);
+                    }
+                }
+
+                // Try 2: fetch using the repo's default branch (no branch specified)
                 try {
-                    const fileResponse = await this.axiosInstance.get(
-                        `${this.organizationUrl}/${this.projectName}/_apis/git/repositories/${repoId}/items`,
-                        {
-                            params: {
-                                'path': path,
-                                'versionDescriptor.version': branch.replace('refs/heads/', ''),
-                                'versionDescriptor.versionType': 'branch',
-                                'api-version': '7.1',
-                                'includeContent': true,
-                                '$format': 'text'
-                            },
-                            responseType: 'text',
-                            headers: {
-                                'Accept': 'text/plain'
+                    return await this.fetchFileFromRepoDefaultBranch(repoId, normalizedPath);
+                } catch (fileError: any) {
+                    console.warn(`[Azure Pipelines] Failed to fetch YAML at "${normalizedPath}" on default branch: ${fileError.response?.status || ''} ${fileError.message || fileError}`);
+                }
+
+                // Try 3: Use Build Definitions API in case the Pipelines API returned a partial path
+                try {
+                    const defResponse = await this.axiosInstance.get(
+                        `${this.organizationUrl}/${this.projectName}/_apis/build/definitions/${pipelineId}`,
+                        { params: { 'api-version': '7.1' } }
+                    );
+
+                    const fullPath = defResponse.data?.process?.yamlFilename;
+                    if (fullPath) {
+                        const normalizedFullPath = fullPath.startsWith('/') ? fullPath : `/${fullPath}`;
+
+                        if (normalizedFullPath !== normalizedPath) {
+                            try {
+                                return await this.fetchFileFromRepoDefaultBranch(repoId, normalizedFullPath);
+                            } catch (retryError: any) {
+                                console.warn(`[Azure Pipelines] Failed to fetch YAML at "${normalizedFullPath}": ${retryError.response?.status || ''} ${retryError.message || retryError}`);
                             }
                         }
-                    );
-                    return fileResponse.data;
-                } catch (fileError) {
-                    // Could not fetch YAML file
+                    }
+                } catch (defError: any) {
+                    console.warn(`[Azure Pipelines] Failed to fetch build definition for pipeline ${pipelineId}: ${defError.message || defError}`);
                 }
             }
 
@@ -605,6 +633,55 @@ export class AzureDevOpsClient {
         } catch (error) {
             throw new Error(`Failed to get pipeline YAML: ${error}`);
         }
+    }
+
+    /**
+     * Fetch a file from a Git repository by path and branch.
+     * Uses org-level URL (without project scope) so that cross-project
+     * repository references resolve correctly by repo GUID.
+     */
+    private async fetchFileFromRepo(repoId: string, path: string, branch: string): Promise<string> {
+        const fileResponse = await this.axiosInstance.get(
+            `${this.organizationUrl}/_apis/git/repositories/${repoId}/items`,
+            {
+                params: {
+                    'path': path,
+                    'versionDescriptor.version': branch,
+                    'versionDescriptor.versionType': 'branch',
+                    'api-version': '7.1',
+                    'includeContent': true,
+                    '$format': 'text'
+                },
+                responseType: 'text',
+                headers: {
+                    'Accept': 'text/plain'
+                }
+            }
+        );
+        return fileResponse.data;
+    }
+
+    /**
+     * Fetch a file from a Git repository using the repo's default branch.
+     * Omits versionDescriptor so the API uses whatever the repo's default branch is.
+     */
+    private async fetchFileFromRepoDefaultBranch(repoId: string, path: string): Promise<string> {
+        const fileResponse = await this.axiosInstance.get(
+            `${this.organizationUrl}/_apis/git/repositories/${repoId}/items`,
+            {
+                params: {
+                    'path': path,
+                    'api-version': '7.1',
+                    'includeContent': true,
+                    '$format': 'text'
+                },
+                responseType: 'text',
+                headers: {
+                    'Accept': 'text/plain'
+                }
+            }
+        );
+        return fileResponse.data;
     }
 
     /**
