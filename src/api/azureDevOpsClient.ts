@@ -36,7 +36,8 @@ export class AzureDevOpsClient {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
-            }
+            },
+            timeout: 30000 // 30 second timeout to prevent indefinite hangs
         });
 
         // Add request interceptor to inject auth token
@@ -649,16 +650,12 @@ export class AzureDevOpsClient {
                     'versionDescriptor.version': branch,
                     'versionDescriptor.versionType': 'branch',
                     'api-version': '7.1',
-                    'includeContent': true,
-                    '$format': 'text'
-                },
-                responseType: 'text',
-                headers: {
-                    'Accept': 'text/plain'
+                    'includeContent': true
                 }
             }
         );
-        return fileResponse.data;
+        // API returns JSON with content property when includeContent=true
+        return fileResponse.data.content || fileResponse.data;
     }
 
     /**
@@ -672,16 +669,12 @@ export class AzureDevOpsClient {
                 params: {
                     'path': path,
                     'api-version': '7.1',
-                    'includeContent': true,
-                    '$format': 'text'
-                },
-                responseType: 'text',
-                headers: {
-                    'Accept': 'text/plain'
+                    'includeContent': true
                 }
             }
         );
-        return fileResponse.data;
+        // API returns JSON with content property when includeContent=true
+        return fileResponse.data.content || fileResponse.data;
     }
 
     /**
