@@ -10,6 +10,7 @@ import { ServiceConnectionsTreeProvider } from './views/serviceConnectionsTreeVi
 import { PipelineCommands } from './commands/pipelineCommands';
 import { ServiceConnectionCommands } from './commands/serviceConnectionCommands';
 import { PipelineCodeLensProvider } from './providers/pipelineCodeLensProvider';
+import { WhatsNewPanel } from './webviews/whatsNewPanel';
 
 let authProvider: AzureDevOpsAuthProvider;
 let client: AzureDevOpsClient;
@@ -129,6 +130,17 @@ export async function activate(context: vscode.ExtensionContext) {
     } else {
         updateStatusBar();
     }
+
+    // Show What's New panel if this is a new version
+    // This will automatically check if user has seen the current announcement
+    await WhatsNewPanel.show(context);
+
+    // Register command to manually show What's New panel
+    context.subscriptions.push(
+        vscode.commands.registerCommand('azurePipelines.showWhatsNew', async () => {
+            await WhatsNewPanel.forceShow(context);
+        })
+    );
 
     // Set up auto-refresh for runs, pipelines, and stages (every 30 seconds)
     const refreshInterval = setInterval(async () => {

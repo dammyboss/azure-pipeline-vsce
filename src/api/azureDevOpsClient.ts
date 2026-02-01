@@ -637,6 +637,14 @@ export class AzureDevOpsClient {
     }
 
     /**
+     * Fetch a file from a Git repository by path and branch (public).
+     * Uses org-level URL so that repository GUIDs resolve correctly.
+     */
+    async fetchFileByBranch(repoId: string, filePath: string, branch: string): Promise<string> {
+        return this.fetchFileFromRepo(repoId, filePath, branch);
+    }
+
+    /**
      * Fetch a file from a Git repository by path and branch.
      * Uses org-level URL (without project scope) so that cross-project
      * repository references resolve correctly by repo GUID.

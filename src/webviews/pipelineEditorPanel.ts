@@ -66,6 +66,9 @@ export class PipelineEditorPanel {
                     case 'getBranches':
                         await this.sendBranches();
                         break;
+                    case 'switchBranch':
+                        await this.fetchYamlForBranch(message.branch);
+                        break;
                     case 'runPipeline':
                         await this.openRunPipelineForm();
                         break;
@@ -194,6 +197,43 @@ export class PipelineEditorPanel {
             });
         } catch (error) {
             console.error('Failed to load branches:', error);
+        }
+    }
+
+    /**
+     * Fetch YAML content for a specific branch and send it to the webview
+     */
+    private async fetchYamlForBranch(branch: string): Promise<void> {
+        if (!this._pipelineConfig) {
+            return;
+        }
+
+        try {
+            this._panel.webview.postMessage({ command: 'branchSwitchStarted' });
+
+            // Normalize path to start with / (same as getPipelineYaml)
+            const yamlPath = this._pipelineConfig.yamlPath;
+            const normalizedPath = yamlPath.startsWith('/') ? yamlPath : `/${yamlPath}`;
+
+            const yaml = await this._client.fetchFileByBranch(
+                this._pipelineConfig.repositoryId,
+                normalizedPath,
+                branch
+            );
+
+            this._originalContent = yaml;
+            this._panel.webview.postMessage({
+                command: 'branchContentLoaded',
+                content: yaml,
+                branch: branch
+            });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            this._panel.webview.postMessage({
+                command: 'branchSwitchError',
+                message: `Failed to load YAML for branch "${branch}": ${errorMessage}`,
+                branch: branch
+            });
         }
     }
 
@@ -3285,11 +3325,16 @@ export class PipelineEditorPanel {
                     <span class="branch-item-name">\${branch}</span>
                 \`;
                 item.addEventListener('click', () => {
+                    const previousBranch = selectedBranch;
                     selectedBranch = branch;
                     selectedBranchName.textContent = branch;
                     currentBranchLabel.textContent = branch;
                     closeBranchDropdown();
                     renderBranches(branches);
+                    // Fetch YAML for the newly selected branch
+                    if (branch !== previousBranch) {
+                        vscode.postMessage({ command: 'switchBranch', branch: branch });
+                    }
                 });
                 branchList.appendChild(item);
             });
@@ -3728,6 +3773,22 @@ export class PipelineEditorPanel {
                     break;
                 case 'variableDeleteError':
                     showNotification('Error: ' + message.message, 'error');
+                    break;
+                case 'branchSwitchStarted':
+                    showNotification('Loading YAML for branch...', 'info');
+                    break;
+                case 'branchContentLoaded':
+                    if (monacoEditor && message.content !== undefined) {
+                        monacoEditor.setValue(message.content);
+                        originalContent = message.content;
+                        isModified = false;
+                        updateButtonState();
+                        updateStatus();
+                        showNotification('Switched to branch: ' + message.branch, 'success');
+                    }
+                    break;
+                case 'branchSwitchError':
+                    showNotification(message.message, 'error');
                     break;
             }
         });

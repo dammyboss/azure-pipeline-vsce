@@ -1,0 +1,739 @@
+import * as vscode from 'vscode';
+
+/**
+ * WhatsNewPanel - Shows a fancy update notification modal when extension is updated
+ * Displays release notes, new features, and improvements
+ */
+export class WhatsNewPanel {
+    public static currentPanel: WhatsNewPanel | undefined;
+    private readonly panel: vscode.WebviewPanel;
+    private disposables: vscode.Disposable[] = [];
+
+    // Current announcement ID - UPDATE THIS FOR EACH NEW RELEASE
+    public static readonly LATEST_ANNOUNCEMENT_ID = 'feb-2026-v0.3.0-yaml-subdirectory-fix';
+
+    private constructor(
+        panel: vscode.WebviewPanel,
+        private readonly context: vscode.ExtensionContext
+    ) {
+        this.panel = panel;
+        this.panel.webview.html = this.getHtmlContent();
+
+        // Handle messages from webview
+        this.panel.webview.onDidReceiveMessage(
+            async (message) => {
+                switch (message.command) {
+                    case 'dismiss':
+                        // Update global state to mark announcement as seen
+                        await this.context.globalState.update(
+                            'lastShownAnnouncementId',
+                            WhatsNewPanel.LATEST_ANNOUNCEMENT_ID
+                        );
+                        this.panel.dispose();
+                        break;
+                    case 'openUrl':
+                        if (message.url) {
+                            vscode.env.openExternal(vscode.Uri.parse(message.url));
+                        }
+                        break;
+                }
+            },
+            null,
+            this.disposables
+        );
+
+        this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
+    }
+
+    /**
+     * Show the What's New panel
+     */
+    public static async show(context: vscode.ExtensionContext): Promise<void> {
+
+        // Check if we should show the announcement
+        const lastShownId = context.globalState.get<string>('lastShownAnnouncementId', '');
+
+        if (lastShownId === WhatsNewPanel.LATEST_ANNOUNCEMENT_ID) {
+            // User has already seen this announcement
+            return;
+        }
+
+        // If panel already exists, focus it
+        if (WhatsNewPanel.currentPanel) {
+            WhatsNewPanel.currentPanel.panel.reveal();
+            return;
+        }
+
+        // Create new panel
+        const panel = vscode.window.createWebviewPanel(
+            'azurePipelinesWhatsNew',
+            "🎉 What's New",
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [context.extensionUri]
+            }
+        );
+
+        WhatsNewPanel.currentPanel = new WhatsNewPanel(panel, context);
+    }
+
+    /**
+     * Force show the What's New panel (for testing or manual trigger)
+     */
+    public static async forceShow(context: vscode.ExtensionContext): Promise<void> {
+
+        // Create new panel
+        const panel = vscode.window.createWebviewPanel(
+            'azurePipelinesWhatsNew',
+            "🎉 What's New",
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [context.extensionUri]
+            }
+        );
+
+        WhatsNewPanel.currentPanel = new WhatsNewPanel(panel, context);
+    }
+
+    private getHtmlContent(): string {
+        const nonce = this.getNonce();
+
+        return `<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+            <title>What's New - Azure DevOps Pipelines</title>
+            <style>
+                /* Reset & Base */
+                *, *::before, *::after {
+                    box-sizing: border-box;
+                    margin: 0;
+                    padding: 0;
+                }
+
+                :root {
+                    --bg-base: #1e1e1e;
+                    --bg-card: #252526;
+                    --bg-secondary: #2d2d30;
+                    --text-primary: #cccccc;
+                    --text-secondary: #858585;
+                    --accent-blue: #0078d4;
+                    --accent-blue-hover: #006cbd;
+                    --border: #3c3c3c;
+                    --success: #4ade80;
+                    --warning: #fbbf24;
+                    --error: #f87171;
+                }
+
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    background: var(--vscode-editor-background, var(--bg-base));
+                    color: var(--text-primary);
+                    line-height: 1.5;
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 1rem;
+                }
+
+                /* Animations */
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+
+                @keyframes slideUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(20px) scale(0.98);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0) scale(1);
+                    }
+                }
+
+                @keyframes shimmer {
+                    0% { background-position: -200% 0; }
+                    100% { background-position: 200% 0; }
+                }
+
+                /* Backdrop */
+                .backdrop {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0, 0, 0, 0.6);
+                    backdrop-filter: blur(4px);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 1rem;
+                    animation: fadeIn 0.2s ease-out forwards;
+                    z-index: 1000;
+                }
+
+                /* Modal */
+                .modal {
+                    width: 100%;
+                    max-width: 650px;
+                    max-height: 90vh;
+                    background: var(--bg-card);
+                    border-radius: 12px;
+                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                }
+
+                /* Header */
+                .modal-header {
+                    position: relative;
+                    padding: 1.25rem 1.5rem;
+                    background: linear-gradient(135deg, #0078d4 0%, #3b4f82 100%);
+                    overflow: hidden;
+                }
+
+                .modal-header::after {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+                    background-size: 200% 100%;
+                    animation: shimmer 2s infinite;
+                }
+
+                .header-content {
+                    position: relative;
+                    z-index: 1;
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                }
+
+                .header-icon {
+                    width: 56px;
+                    height: 56px;
+                    border-radius: 12px;
+                    background: rgba(255, 255, 255, 0.1);
+                    backdrop-filter: blur(8px);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .header-icon svg {
+                    width: 28px;
+                    height: 28px;
+                    color: white;
+                }
+
+                .header-text h1 {
+                    font-size: 1.25rem;
+                    font-weight: 600;
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    margin-bottom: 0.25rem;
+                }
+
+                .version-badge {
+                    padding: 0.125rem 0.5rem;
+                    font-size: 0.75rem;
+                    font-weight: 500;
+                    background: rgba(255, 255, 255, 0.2);
+                    color: white;
+                    border-radius: 9999px;
+                }
+
+                .header-text p {
+                    font-size: 0.875rem;
+                    color: rgba(255, 255, 255, 0.8);
+                }
+
+                .close-btn {
+                    position: absolute;
+                    top: 1rem;
+                    right: 1rem;
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 6px;
+                    border: none;
+                    background: transparent;
+                    color: rgba(255, 255, 255, 0.7);
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.2s;
+                    z-index: 2;
+                }
+
+                .close-btn:hover {
+                    background: rgba(255, 255, 255, 0.1);
+                    color: white;
+                }
+
+                .close-btn svg {
+                    width: 20px;
+                    height: 20px;
+                }
+
+                /* Content */
+                .modal-content {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 1.25rem 1.5rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.25rem;
+                }
+
+                /* Section */
+                .section {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                }
+
+                .section-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    padding: 0 0.25rem;
+                }
+
+                .section-icon {
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 4px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .section-icon.features { background: rgba(74, 222, 128, 0.2); }
+                .section-icon.features svg { color: #4ade80; }
+
+                .section-icon.fixes { background: rgba(248, 113, 113, 0.2); }
+                .section-icon.fixes svg { color: #f87171; }
+
+                .section-icon.improvements { background: rgba(251, 191, 36, 0.2); }
+                .section-icon.improvements svg { color: #fbbf24; }
+
+                .section-icon svg {
+                    width: 12px;
+                    height: 12px;
+                }
+
+                .section-title {
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    color: var(--text-secondary);
+                }
+
+                .section-content {
+                    background: rgba(37, 37, 38, 0.5);
+                    border-radius: 8px;
+                    border: 1px solid rgba(60, 60, 60, 0.5);
+                    overflow: hidden;
+                }
+
+                /* Feature Item */
+                .feature-item {
+                    display: flex;
+                    gap: 0.75rem;
+                    padding: 0.75rem;
+                    transition: background 0.2s;
+                }
+
+                .feature-item:hover {
+                    background: rgba(45, 45, 48, 0.5);
+                }
+
+                .feature-item + .feature-item {
+                    border-top: 1px solid rgba(60, 60, 60, 0.3);
+                }
+
+                .feature-icon {
+                    flex-shrink: 0;
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 6px;
+                    background: rgba(0, 120, 212, 0.1);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: background 0.2s;
+                }
+
+                .feature-item:hover .feature-icon {
+                    background: rgba(0, 120, 212, 0.2);
+                }
+
+                .feature-icon svg {
+                    width: 16px;
+                    height: 16px;
+                    color: var(--accent-blue);
+                }
+
+                .feature-text {
+                    flex: 1;
+                    min-width: 0;
+                }
+
+                .feature-text h4 {
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                    color: var(--text-primary);
+                    margin-bottom: 0.125rem;
+                }
+
+                .feature-text p {
+                    font-size: 0.75rem;
+                    color: var(--text-secondary);
+                    line-height: 1.5;
+                }
+
+                /* Footer */
+                .modal-footer {
+                    padding: 1rem 1.5rem;
+                    background: rgba(45, 45, 48, 0.5);
+                    border-top: 1px solid var(--border);
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 1rem;
+                    flex-wrap: wrap;
+                }
+
+                .footer-links {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                }
+
+                .footer-link {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.375rem;
+                    font-size: 0.75rem;
+                    color: var(--text-secondary);
+                    text-decoration: none;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    transition: color 0.2s;
+                    padding: 0;
+                }
+
+                .footer-link:hover {
+                    color: var(--text-primary);
+                }
+
+                .footer-link svg {
+                    width: 16px;
+                    height: 16px;
+                }
+
+                .footer-divider {
+                    color: var(--border);
+                }
+
+                .dismiss-btn {
+                    padding: 0.5rem 1.25rem;
+                    background: var(--accent-blue);
+                    color: white;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .dismiss-btn:hover {
+                    background: var(--accent-blue-hover);
+                    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
+                }
+
+                .dismiss-btn:focus {
+                    outline: none;
+                    box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--accent-blue);
+                }
+
+                /* Scrollbar */
+                .modal-content::-webkit-scrollbar {
+                    width: 8px;
+                }
+
+                .modal-content::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+
+                .modal-content::-webkit-scrollbar-thumb {
+                    background: var(--border);
+                    border-radius: 4px;
+                }
+
+                .modal-content::-webkit-scrollbar-thumb:hover {
+                    background: #4a4a4a;
+                }
+
+                /* Mobile responsive */
+                @media (max-width: 480px) {
+                    .modal-footer {
+                        flex-direction: column;
+                        align-items: stretch;
+                    }
+
+                    .footer-links {
+                        justify-content: center;
+                    }
+
+                    .dismiss-btn {
+                        width: 100%;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="backdrop" id="backdrop">
+                <div class="modal" onclick="event.stopPropagation()">
+                    <!-- Header -->
+                    <div class="modal-header">
+                        <button class="close-btn" onclick="dismiss()" aria-label="Close">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                        <div class="header-content">
+                            <div class="header-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                                </svg>
+                            </div>
+                            <div class="header-text">
+                                <h1>
+                                    Azure DevOps Pipelines
+                                    <span class="version-badge">v0.3.0</span>
+                                </h1>
+                                <p>What's new in this release</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="modal-content">
+                        <!-- New Features -->
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-icon features">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                                    </svg>
+                                </div>
+                                <span class="section-title">New Features</span>
+                            </div>
+                            <div class="section-content">
+                                <div class="feature-item">
+                                    <div class="feature-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+                                        </svg>
+                                    </div>
+                                    <div class="feature-text">
+                                        <h4>Subdirectory Pipeline Support</h4>
+                                        <p>Fixed YAML fetching for pipelines stored in subdirectories, enabling better project organization</p>
+                                    </div>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <div class="feature-text">
+                                        <h4>Improved API Performance</h4>
+                                        <p>Added 30-second timeout to prevent indefinite hangs during API calls</p>
+                                    </div>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                    </div>
+                                    <div class="feature-text">
+                                        <h4>Enhanced Git Items API Integration</h4>
+                                        <p>Updated to use official Microsoft Learn Git Items API specification for better compatibility</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bug Fixes -->
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-icon fixes">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 12.75c1.148 0 2.278.08 3.383.237 1.037.146 1.866.966 1.866 2.013 0 3.728-2.35 6.75-5.25 6.75S6.75 18.728 6.75 15c0-1.046.83-1.867 1.866-2.013A24.204 24.204 0 0112 12.75zm0 0c2.883 0 5.647.508 8.207 1.44a23.91 23.91 0 01-1.152 6.06M12 12.75c-2.883 0-5.647.508-8.208 1.44.125 2.104.52 4.136 1.153 6.06M12 12.75a2.25 2.25 0 002.248-2.354M12 12.75a2.25 2.25 0 01-2.248-2.354M12 8.25c.995 0 1.971-.08 2.922-.236.403-.066.74-.358.795-.762a3.778 3.778 0 00-.399-2.25M12 8.25c-.995 0-1.97-.08-2.922-.236-.402-.066-.74-.358-.795-.762a3.734 3.734 0 01.4-2.253M12 8.25a2.25 2.25 0 00-2.248 2.146M12 8.25a2.25 2.25 0 012.248 2.146M8.683 5a6.032 6.032 0 01-1.155-1.002c.07-.63.27-1.222.574-1.747m.581 2.749A3.75 3.75 0 0115.318 5m0 0c.427-.283.815-.62 1.155-.999a4.471 4.471 0 00-.575-1.752M4.921 6a24.048 24.048 0 00-.392 3.314c1.668.546 3.416.914 5.223 1.082M19.08 6c.205 1.08.337 2.187.392 3.314a23.882 23.882 0 01-5.223 1.082" />
+                                    </svg>
+                                </div>
+                                <span class="section-title">Bug Fixes</span>
+                            </div>
+                            <div class="section-content">
+                                <div class="feature-item">
+                                    <div class="feature-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                                        </svg>
+                                    </div>
+                                    <div class="feature-text">
+                                        <h4>Fixed Runtime Parameters Issue</h4>
+                                        <p>Resolved "variables not settable at queue time" errors when running pipelines</p>
+                                    </div>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                                        </svg>
+                                    </div>
+                                    <div class="feature-text">
+                                        <h4>Pipeline Form Loading</h4>
+                                        <p>Fixed issue where "Run Pipeline" forms were getting stuck during loading</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Improvements -->
+                        <div class="section">
+                            <div class="section-header">
+                                <div class="section-icon improvements">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                    </svg>
+                                </div>
+                                <span class="section-title">Improvements</span>
+                            </div>
+                            <div class="section-content">
+                                <div class="feature-item">
+                                    <div class="feature-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                                        </svg>
+                                    </div>
+                                    <div class="feature-text">
+                                        <h4>Better Error Handling</h4>
+                                        <p>More informative error messages and graceful fallbacks for edge cases</p>
+                                    </div>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                                        </svg>
+                                    </div>
+                                    <div class="feature-text">
+                                        <h4>Performance Optimizations</h4>
+                                        <p>Reduced loading times and improved overall responsiveness</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="modal-footer">
+                        <div class="footer-links">
+                            <button class="footer-link" onclick="openUrl('https://github.com/dammyboss/azure-pipeline-vsce')">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+                                </svg>
+                                GitHub
+                            </button>
+                            <span class="footer-divider">&bull;</span>
+                            <button class="footer-link" onclick="openUrl('https://github.com/dammyboss/azure-pipeline-vsce/issues')">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                                </svg>
+                                Report Issues
+                            </button>
+                            <span class="footer-divider">&bull;</span>
+                            <button class="footer-link" onclick="openUrl('https://github.com/dammyboss/azure-pipeline-vsce/blob/main/CHANGELOG.md')">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                Full Changelog
+                            </button>
+                        </div>
+                        <button class="dismiss-btn" onclick="dismiss()">Got it!</button>
+                    </div>
+                </div>
+            </div>
+
+            <script nonce="${nonce}">
+                const vscode = acquireVsCodeApi();
+
+                function dismiss() {
+                    vscode.postMessage({ command: 'dismiss' });
+                }
+
+                function openUrl(url) {
+                    vscode.postMessage({ command: 'openUrl', url: url });
+                }
+
+                // Close on backdrop click
+                document.getElementById('backdrop').addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        dismiss();
+                    }
+                });
+
+                // Close on ESC key
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        dismiss();
+                    }
+                });
+            </script>
+        </body>
+        </html>`;
+    }
+
+    private getNonce(): string {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < 32; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
+
+    public dispose(): void {
+        WhatsNewPanel.currentPanel = undefined;
+
+        this.panel.dispose();
+
+        while (this.disposables.length) {
+            const disposable = this.disposables.pop();
+            if (disposable) {
+                disposable.dispose();
+            }
+        }
+    }
+}

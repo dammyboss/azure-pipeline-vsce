@@ -86,6 +86,12 @@
         "icon": "$(organization)"
       },
       {
+        "command": "azurePipelines.showWhatsNew",
+        "title": "Show What's New",
+        "category": "Azure Pipelines",
+        "icon": "$(gift)"
+      },
+      {
         "command": "azurePipelines.refreshPipelines",
         "title": "Refresh Pipelines",
         "category": "Azure Pipelines",
