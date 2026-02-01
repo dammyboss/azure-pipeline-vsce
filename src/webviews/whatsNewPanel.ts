@@ -143,16 +143,16 @@ export class WhatsNewPanel {
                     padding: 1rem;
                 }
 
-                /* Animations */
-                @keyframes fadeIn {
+                /* ===== Animations ===== */
+                @keyframes backdropFadeIn {
                     from { opacity: 0; }
                     to { opacity: 1; }
                 }
 
-                @keyframes slideUp {
+                @keyframes modalSlideIn {
                     from {
                         opacity: 0;
-                        transform: translateY(20px) scale(0.98);
+                        transform: translateY(30px) scale(0.95);
                     }
                     to {
                         opacity: 1;
@@ -160,54 +160,219 @@ export class WhatsNewPanel {
                     }
                 }
 
-                @keyframes shimmer {
-                    0% { background-position: -200% 0; }
-                    100% { background-position: 200% 0; }
+                @keyframes fadeInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
                 }
 
-                /* Backdrop */
+                @keyframes slideInFromRight {
+                    from {
+                        opacity: 0;
+                        transform: translateX(20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                }
+
+                @keyframes contentFadeIn {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+
+                @keyframes iconBounce {
+                    0% { opacity: 0; transform: scale(0.5) rotate(-10deg); }
+                    50% { transform: scale(1.1) rotate(5deg); }
+                    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+                }
+
+                @keyframes rocketWobble {
+                    0%, 100% { transform: rotate(-3deg) translateY(0); }
+                    25% { transform: rotate(3deg) translateY(-2px); }
+                    50% { transform: rotate(-2deg) translateY(0); }
+                    75% { transform: rotate(2deg) translateY(-1px); }
+                }
+
+                @keyframes badgePop {
+                    from { opacity: 0; transform: scale(0); }
+                    50% { transform: scale(1.2); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+
+                @keyframes shimmerMove {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(100%); }
+                }
+
+                @keyframes gradientShift {
+                    0%, 100% { background-position: 0% 50%; }
+                    50% { background-position: 100% 50%; }
+                }
+
+                @keyframes floatUp {
+                    0% {
+                        opacity: 0;
+                        transform: translateY(0) scale(0);
+                    }
+                    10% {
+                        opacity: 1;
+                        transform: scale(1);
+                    }
+                    90% {
+                        opacity: 1;
+                    }
+                    100% {
+                        opacity: 0;
+                        transform: translateY(-80px) scale(0.5);
+                    }
+                }
+
+                @keyframes slideUpFade {
+                    from {
+                        opacity: 0;
+                        transform: translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                }
+
+                /* ===== Backdrop ===== */
                 .backdrop {
                     position: fixed;
                     inset: 0;
-                    background: rgba(0, 0, 0, 0.6);
-                    backdrop-filter: blur(4px);
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     padding: 1rem;
-                    animation: fadeIn 0.2s ease-out forwards;
+                    animation: backdropFadeIn 0.4s ease-out forwards;
                     z-index: 1000;
                 }
 
-                /* Modal */
+                .backdrop-bg {
+                    position: absolute;
+                    inset: 0;
+                    backdrop-filter: blur(8px);
+                    -webkit-backdrop-filter: blur(8px);
+                    background: radial-gradient(circle at 50% 30%, rgba(0, 120, 212, 0.15) 0%, rgba(0,0,0,0.7) 100%);
+                }
+
+                /* ===== Modal ===== */
                 .modal {
+                    position: relative;
                     width: 100%;
                     max-width: 650px;
                     max-height: 90vh;
                     background: var(--bg-card);
                     border-radius: 12px;
-                    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
                     overflow: hidden;
                     display: flex;
                     flex-direction: column;
-                    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                    box-shadow: 0 0 80px rgba(0, 120, 212, 0.3), 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+                    animation: modalSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
                 }
 
-                /* Header */
+                /* ===== Header ===== */
                 .modal-header {
                     position: relative;
                     padding: 1.25rem 1.5rem;
-                    background: linear-gradient(135deg, #0078d4 0%, #3b4f82 100%);
+                    background: linear-gradient(135deg, #0078d4 0%, #3b4f82 50%, #0078d4 100%);
+                    background-size: 200% 200%;
+                    animation: gradientShift 8s ease infinite;
                     overflow: hidden;
                 }
 
-                .modal-header::after {
-                    content: '';
+                /* Floating particles */
+                .particle {
+                    position: absolute;
+                    border-radius: 50%;
+                    background: rgba(255, 255, 255, 0.2);
+                    pointer-events: none;
+                    bottom: -10px;
+                }
+                .particle-1 { width: 4px; height: 4px; left: 10%; animation: floatUp 3s ease-out 0s infinite; }
+                .particle-2 { width: 6px; height: 6px; left: 25%; animation: floatUp 4s ease-out 0.5s infinite; }
+                .particle-3 { width: 3px; height: 3px; left: 40%; animation: floatUp 3.5s ease-out 1s infinite; }
+                .particle-4 { width: 5px; height: 5px; left: 60%; animation: floatUp 4.5s ease-out 1.5s infinite; }
+                .particle-5 { width: 4px; height: 4px; left: 75%; animation: floatUp 3s ease-out 0.3s infinite; }
+                .particle-6 { width: 3px; height: 3px; left: 90%; animation: floatUp 4s ease-out 0.8s infinite; }
+
+                /* Shimmer sweep */
+                .header-shimmer {
                     position: absolute;
                     inset: 0;
-                    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
-                    background-size: 200% 100%;
-                    animation: shimmer 2s infinite;
+                    opacity: 0.4;
+                    pointer-events: none;
+                    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
+                    animation: shimmerMove 3s ease-in-out infinite;
+                }
+
+                /* Glow orbs */
+                .glow-orb-1 {
+                    position: absolute;
+                    top: -80px;
+                    right: -80px;
+                    width: 160px;
+                    height: 160px;
+                    border-radius: 50%;
+                    background: rgba(255, 255, 255, 0.1);
+                    filter: blur(48px);
+                    animation: pulse 2s ease-in-out infinite;
+                    pointer-events: none;
+                }
+                .glow-orb-2 {
+                    position: absolute;
+                    bottom: -40px;
+                    left: -40px;
+                    width: 128px;
+                    height: 128px;
+                    border-radius: 50%;
+                    background: rgba(0, 120, 212, 0.2);
+                    filter: blur(32px);
+                    animation: pulse 2s ease-in-out 1s infinite;
+                    pointer-events: none;
+                }
+
+                .close-btn {
+                    position: absolute;
+                    top: 1rem;
+                    right: 1rem;
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 6px;
+                    border: none;
+                    background: transparent;
+                    color: rgba(255, 255, 255, 0.7);
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.3s;
+                    z-index: 2;
+                }
+
+                .close-btn:hover {
+                    background: rgba(255, 255, 255, 0.1);
+                    color: white;
+                    transform: rotate(90deg) scale(1.1);
+                }
+
+                .close-btn svg {
+                    width: 20px;
+                    height: 20px;
                 }
 
                 .header-content {
@@ -216,6 +381,7 @@ export class WhatsNewPanel {
                     display: flex;
                     align-items: center;
                     gap: 1rem;
+                    animation: contentFadeIn 0.6s ease-out 0.2s both;
                 }
 
                 .header-icon {
@@ -224,16 +390,24 @@ export class WhatsNewPanel {
                     border-radius: 12px;
                     background: rgba(255, 255, 255, 0.1);
                     backdrop-filter: blur(8px);
+                    -webkit-backdrop-filter: blur(8px);
                     border: 1px solid rgba(255, 255, 255, 0.2);
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    transition: transform 0.3s;
+                    animation: iconBounce 0.6s ease-out 0.3s both;
+                }
+
+                .header-icon:hover {
+                    transform: scale(1.05);
                 }
 
                 .header-icon svg {
                     width: 28px;
                     height: 28px;
                     color: white;
+                    animation: rocketWobble 2s ease-in-out infinite;
                 }
 
                 .header-text h1 {
@@ -253,6 +427,13 @@ export class WhatsNewPanel {
                     background: rgba(255, 255, 255, 0.2);
                     color: white;
                     border-radius: 9999px;
+                    cursor: default;
+                    transition: background 0.3s;
+                    animation: badgePop 0.4s ease-out 0.5s both;
+                }
+
+                .version-badge:hover {
+                    background: rgba(255, 255, 255, 0.3);
                 }
 
                 .header-text p {
@@ -260,35 +441,7 @@ export class WhatsNewPanel {
                     color: rgba(255, 255, 255, 0.8);
                 }
 
-                .close-btn {
-                    position: absolute;
-                    top: 1rem;
-                    right: 1rem;
-                    width: 32px;
-                    height: 32px;
-                    border-radius: 6px;
-                    border: none;
-                    background: transparent;
-                    color: rgba(255, 255, 255, 0.7);
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    transition: all 0.2s;
-                    z-index: 2;
-                }
-
-                .close-btn:hover {
-                    background: rgba(255, 255, 255, 0.1);
-                    color: white;
-                }
-
-                .close-btn svg {
-                    width: 20px;
-                    height: 20px;
-                }
-
-                /* Content */
+                /* ===== Content ===== */
                 .modal-content {
                     flex: 1;
                     overflow-y: auto;
@@ -298,12 +451,16 @@ export class WhatsNewPanel {
                     gap: 1.25rem;
                 }
 
-                /* Section */
+                /* ===== Section ===== */
                 .section {
                     display: flex;
                     flex-direction: column;
                     gap: 0.5rem;
+                    opacity: 0;
                 }
+                .section.s1 { animation: fadeInUp 0.6s ease-out 0.2s both; }
+                .section.s2 { animation: fadeInUp 0.6s ease-out 0.4s both; }
+                .section.s3 { animation: fadeInUp 0.6s ease-out 0.6s both; }
 
                 .section-header {
                     display: flex;
@@ -319,6 +476,7 @@ export class WhatsNewPanel {
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    animation: pulse 2s ease-in-out infinite;
                 }
 
                 .section-icon.features { background: rgba(74, 222, 128, 0.2); }
@@ -348,23 +506,42 @@ export class WhatsNewPanel {
                     border-radius: 8px;
                     border: 1px solid rgba(60, 60, 60, 0.5);
                     overflow: hidden;
+                    backdrop-filter: blur(4px);
+                    -webkit-backdrop-filter: blur(4px);
+                    transition: border-color 0.5s;
                 }
 
-                /* Feature Item */
+                .section-content:hover {
+                    border-color: rgba(0, 120, 212, 0.3);
+                }
+
+                /* ===== Feature Item ===== */
                 .feature-item {
                     display: flex;
                     gap: 0.75rem;
                     padding: 0.75rem;
-                    transition: background 0.2s;
+                    transition: all 0.3s;
+                    cursor: default;
+                    opacity: 0;
                 }
 
                 .feature-item:hover {
                     background: rgba(45, 45, 48, 0.5);
+                    transform: translateX(4px);
                 }
 
                 .feature-item + .feature-item {
                     border-top: 1px solid rgba(60, 60, 60, 0.3);
                 }
+
+                /* Staggered slide-in animations for each feature item */
+                .feature-item.fi-0 { animation: slideInFromRight 0.5s ease-out 0.0s both; }
+                .feature-item.fi-1 { animation: slideInFromRight 0.5s ease-out 0.1s both; }
+                .feature-item.fi-2 { animation: slideInFromRight 0.5s ease-out 0.2s both; }
+                .feature-item.fi-3 { animation: slideInFromRight 0.5s ease-out 0.3s both; }
+                .feature-item.fi-4 { animation: slideInFromRight 0.5s ease-out 0.4s both; }
+                .feature-item.fi-5 { animation: slideInFromRight 0.5s ease-out 0.5s both; }
+                .feature-item.fi-6 { animation: slideInFromRight 0.5s ease-out 0.6s both; }
 
                 .feature-icon {
                     flex-shrink: 0;
@@ -375,11 +552,12 @@ export class WhatsNewPanel {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    transition: background 0.2s;
+                    transition: all 0.3s;
                 }
 
                 .feature-item:hover .feature-icon {
                     background: rgba(0, 120, 212, 0.2);
+                    transform: scale(1.1) rotate(3deg);
                 }
 
                 .feature-icon svg {
@@ -398,6 +576,11 @@ export class WhatsNewPanel {
                     font-weight: 500;
                     color: var(--text-primary);
                     margin-bottom: 0.125rem;
+                    transition: color 0.3s;
+                }
+
+                .feature-item:hover .feature-text h4 {
+                    color: var(--accent-blue);
                 }
 
                 .feature-text p {
@@ -406,7 +589,27 @@ export class WhatsNewPanel {
                     line-height: 1.5;
                 }
 
-                /* Footer */
+                /* Hover indicator dot */
+                .hover-dot {
+                    display: flex;
+                    align-items: center;
+                    opacity: 0;
+                    transition: opacity 0.3s;
+                }
+
+                .feature-item:hover .hover-dot {
+                    opacity: 1;
+                }
+
+                .hover-dot-inner {
+                    width: 6px;
+                    height: 6px;
+                    border-radius: 50%;
+                    background: var(--accent-blue);
+                    animation: pulse 1s ease-in-out infinite;
+                }
+
+                /* ===== Footer ===== */
                 .modal-footer {
                     padding: 1rem 1.5rem;
                     background: rgba(45, 45, 48, 0.5);
@@ -416,6 +619,7 @@ export class WhatsNewPanel {
                     justify-content: space-between;
                     gap: 1rem;
                     flex-wrap: wrap;
+                    animation: slideUpFade 0.5s ease-out 0.5s both;
                 }
 
                 .footer-links {
@@ -434,17 +638,23 @@ export class WhatsNewPanel {
                     background: none;
                     border: none;
                     cursor: pointer;
-                    transition: color 0.2s;
+                    transition: all 0.3s;
                     padding: 0;
                 }
 
                 .footer-link:hover {
                     color: var(--text-primary);
+                    transform: scale(1.05);
                 }
 
                 .footer-link svg {
                     width: 16px;
                     height: 16px;
+                    transition: transform 0.3s;
+                }
+
+                .footer-link:hover svg {
+                    transform: rotate(12deg);
                 }
 
                 .footer-divider {
@@ -452,6 +662,7 @@ export class WhatsNewPanel {
                 }
 
                 .dismiss-btn {
+                    position: relative;
                     padding: 0.5rem 1.25rem;
                     background: var(--accent-blue);
                     color: white;
@@ -460,12 +671,14 @@ export class WhatsNewPanel {
                     border: none;
                     border-radius: 6px;
                     cursor: pointer;
-                    transition: all 0.2s;
+                    transition: all 0.3s;
+                    overflow: hidden;
                 }
 
                 .dismiss-btn:hover {
                     background: var(--accent-blue-hover);
                     box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
+                    transform: scale(1.05);
                 }
 
                 .dismiss-btn:focus {
@@ -473,7 +686,24 @@ export class WhatsNewPanel {
                     box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--accent-blue);
                 }
 
-                /* Scrollbar */
+                .dismiss-btn .btn-text {
+                    position: relative;
+                    z-index: 1;
+                }
+
+                .dismiss-btn .btn-shimmer {
+                    position: absolute;
+                    inset: 0;
+                    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+                    transform: translateX(-100%);
+                    transition: transform 0.7s;
+                }
+
+                .dismiss-btn:hover .btn-shimmer {
+                    transform: translateX(100%);
+                }
+
+                /* ===== Scrollbar ===== */
                 .modal-content::-webkit-scrollbar {
                     width: 8px;
                 }
@@ -491,7 +721,7 @@ export class WhatsNewPanel {
                     background: #4a4a4a;
                 }
 
-                /* Mobile responsive */
+                /* ===== Mobile responsive ===== */
                 @media (max-width: 480px) {
                     .modal-footer {
                         flex-direction: column;
@@ -510,9 +740,27 @@ export class WhatsNewPanel {
         </head>
         <body>
             <div class="backdrop" id="backdrop">
+                <!-- Animated backdrop -->
+                <div class="backdrop-bg"></div>
+
                 <div class="modal" onclick="event.stopPropagation()">
-                    <!-- Header -->
+                    <!-- Header with animated gradient and particles -->
                     <div class="modal-header">
+                        <!-- Floating particles -->
+                        <div class="particle particle-1"></div>
+                        <div class="particle particle-2"></div>
+                        <div class="particle particle-3"></div>
+                        <div class="particle particle-4"></div>
+                        <div class="particle particle-5"></div>
+                        <div class="particle particle-6"></div>
+
+                        <!-- Shimmer sweep -->
+                        <div class="header-shimmer"></div>
+
+                        <!-- Glow orbs -->
+                        <div class="glow-orb-1"></div>
+                        <div class="glow-orb-2"></div>
+
                         <button class="close-btn" onclick="dismiss()" aria-label="Close">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -537,7 +785,7 @@ export class WhatsNewPanel {
                     <!-- Content -->
                     <div class="modal-content">
                         <!-- New Features -->
-                        <div class="section">
+                        <div class="section s1">
                             <div class="section-header">
                                 <div class="section-icon features">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -547,7 +795,7 @@ export class WhatsNewPanel {
                                 <span class="section-title">New Features</span>
                             </div>
                             <div class="section-content">
-                                <div class="feature-item">
+                                <div class="feature-item fi-0">
                                     <div class="feature-icon">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
@@ -557,8 +805,9 @@ export class WhatsNewPanel {
                                         <h4>Subdirectory Pipeline Support</h4>
                                         <p>Fixed YAML fetching for pipelines stored in subdirectories, enabling better project organization</p>
                                     </div>
+                                    <div class="hover-dot"><div class="hover-dot-inner"></div></div>
                                 </div>
-                                <div class="feature-item">
+                                <div class="feature-item fi-1">
                                     <div class="feature-icon">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -568,8 +817,9 @@ export class WhatsNewPanel {
                                         <h4>Improved API Performance</h4>
                                         <p>Added 30-second timeout to prevent indefinite hangs during API calls</p>
                                     </div>
+                                    <div class="hover-dot"><div class="hover-dot-inner"></div></div>
                                 </div>
-                                <div class="feature-item">
+                                <div class="feature-item fi-2">
                                     <div class="feature-icon">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
@@ -580,12 +830,13 @@ export class WhatsNewPanel {
                                         <h4>Enhanced Git Items API Integration</h4>
                                         <p>Updated to use official Microsoft Learn Git Items API specification for better compatibility</p>
                                     </div>
+                                    <div class="hover-dot"><div class="hover-dot-inner"></div></div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Bug Fixes -->
-                        <div class="section">
+                        <div class="section s2">
                             <div class="section-header">
                                 <div class="section-icon fixes">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -595,7 +846,7 @@ export class WhatsNewPanel {
                                 <span class="section-title">Bug Fixes</span>
                             </div>
                             <div class="section-content">
-                                <div class="feature-item">
+                                <div class="feature-item fi-3">
                                     <div class="feature-icon">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
@@ -605,8 +856,9 @@ export class WhatsNewPanel {
                                         <h4>Fixed Runtime Parameters Issue</h4>
                                         <p>Resolved "variables not settable at queue time" errors when running pipelines</p>
                                     </div>
+                                    <div class="hover-dot"><div class="hover-dot-inner"></div></div>
                                 </div>
-                                <div class="feature-item">
+                                <div class="feature-item fi-4">
                                     <div class="feature-icon">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
@@ -616,12 +868,13 @@ export class WhatsNewPanel {
                                         <h4>Pipeline Form Loading</h4>
                                         <p>Fixed issue where "Run Pipeline" forms were getting stuck during loading</p>
                                     </div>
+                                    <div class="hover-dot"><div class="hover-dot-inner"></div></div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Improvements -->
-                        <div class="section">
+                        <div class="section s3">
                             <div class="section-header">
                                 <div class="section-icon improvements">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -631,7 +884,7 @@ export class WhatsNewPanel {
                                 <span class="section-title">Improvements</span>
                             </div>
                             <div class="section-content">
-                                <div class="feature-item">
+                                <div class="feature-item fi-5">
                                     <div class="feature-icon">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
@@ -641,8 +894,9 @@ export class WhatsNewPanel {
                                         <h4>Better Error Handling</h4>
                                         <p>More informative error messages and graceful fallbacks for edge cases</p>
                                     </div>
+                                    <div class="hover-dot"><div class="hover-dot-inner"></div></div>
                                 </div>
-                                <div class="feature-item">
+                                <div class="feature-item fi-6">
                                     <div class="feature-icon">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
@@ -652,6 +906,7 @@ export class WhatsNewPanel {
                                         <h4>Performance Optimizations</h4>
                                         <p>Reduced loading times and improved overall responsiveness</p>
                                     </div>
+                                    <div class="hover-dot"><div class="hover-dot-inner"></div></div>
                                 </div>
                             </div>
                         </div>
@@ -681,7 +936,10 @@ export class WhatsNewPanel {
                                 Full Changelog
                             </button>
                         </div>
-                        <button class="dismiss-btn" onclick="dismiss()">Got it!</button>
+                        <button class="dismiss-btn" onclick="dismiss()">
+                            <span class="btn-text">Got it!</span>
+                            <div class="btn-shimmer"></div>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -699,7 +957,7 @@ export class WhatsNewPanel {
 
                 // Close on backdrop click
                 document.getElementById('backdrop').addEventListener('click', function(e) {
-                    if (e.target === this) {
+                    if (e.target === this || e.target.classList.contains('backdrop-bg')) {
                         dismiss();
                     }
                 });
