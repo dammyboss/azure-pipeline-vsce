@@ -244,6 +244,12 @@
         "title": "Open Task Assistant",
         "category": "Azure Pipelines",
         "icon": "$(extensions)"
+      },
+      {
+        "command": "azurePipelines.enterLicenseKey",
+        "title": "Enter License Key",
+        "category": "Azure Pipelines",
+        "icon": "$(key)"
       }
     ],
     "menus": {
@@ -435,6 +441,16 @@
           "type": "boolean",
           "default": true,
           "description": "Show notifications for pipeline events"
+        },
+        "azurePipelines.devMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Developer mode — bypasses all license checks. Do not enable in production."
+        },
+        "azurePipelines.licenseApiUrl": {
+          "type": "string",
+          "default": "https://license.azure-pipeline-vsce.vercel.app",
+          "description": "License validation API endpoint (internal use)"
         }
       }
     }

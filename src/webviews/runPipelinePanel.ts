@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { PipelineRun, Pipeline } from '../models/types';
+import { LicenseManager } from '../services/licenseManager';
 
 export class RunPipelinePanel {
     private readonly panel: vscode.WebviewPanel;
@@ -24,6 +25,9 @@ export class RunPipelinePanel {
                         break;
                     case 'cancel':
                         this.panel.dispose();
+                        break;
+                    case 'upgradePrompt':
+                        LicenseManager.getInstance().showUpgradePrompt(message.featureName || 'Advanced Run Options');
                         break;
                 }
             },
@@ -149,6 +153,7 @@ export class RunPipelinePanel {
         const defaultBranch = this.sourceBranch?.replace('refs/heads/', '') || branches[0] || 'main';
         const hasVariables = Object.keys(variables).length > 0;
         const hasStages = stages.length > 0;
+        const isPremium = LicenseManager.getInstance().isPremium();
         const repoName = pipelineConfig?.repositoryName || '';
         const yamlPath = pipelineConfig?.yamlPath?.replace(/^\//, '') || '';
 
@@ -285,6 +290,33 @@ export class RunPipelinePanel {
             background: var(--vscode-editor-inactiveSelectionBackground);
             border-radius: 4px;
         }
+        .locked-feature {
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+            padding: 12px;
+            background: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .locked-feature .lock-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .locked-feature .upgrade-link {
+            color: var(--vscode-textLink-foreground, #3794ff);
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 13px;
+            font-family: var(--vscode-font-family);
+            text-decoration: underline;
+        }
+        .locked-feature .upgrade-link:hover {
+            color: var(--vscode-textLinkActiveForeground, #b3d3fd);
+        }
         .checkbox-group {
             display: flex;
             flex-direction: column;
@@ -399,7 +431,7 @@ export class RunPipelinePanel {
     <div class="section">
         <div class="section-title">Advanced options</div>
 
-        ${hasStages ? `
+        ${hasStages && isPremium ? `
         <div class="expandable-section">
             <div class="expandable-header" onclick="toggleSection(this)">
                 <div class="expandable-title">Stages to run</div>
@@ -416,6 +448,11 @@ export class RunPipelinePanel {
                 </div>
             </div>
         </div>
+        ` : hasStages ? `
+        <div class="locked-feature">
+            <span class="lock-icon">$(lock)</span>
+            <span>Stage selection is a <strong>Pro</strong> feature. <button class="upgrade-link" onclick="upgradePrompt('Stage Selection')">Upgrade to unlock</button></span>
+        </div>
         ` : '<div class="info-text">Run as configured</div>'}
 
         <div class="expandable-section">
@@ -428,7 +465,7 @@ export class RunPipelinePanel {
             </div>
         </div>
 
-        ${hasVariables ? `
+        ${hasVariables && isPremium ? `
         <div class="expandable-section">
             <div class="expandable-header" onclick="toggleSection(this)">
                 <div class="expandable-title">Variables</div>
@@ -444,6 +481,11 @@ export class RunPipelinePanel {
                     `).join('')}
                 </div>
             </div>
+        </div>
+        ` : hasVariables ? `
+        <div class="locked-feature" style="margin-top: 12px;">
+            <span class="lock-icon">$(lock)</span>
+            <span>Variable overrides are a <strong>Pro</strong> feature. <button class="upgrade-link" onclick="upgradePrompt('Variable Overrides')">Upgrade to unlock</button></span>
         </div>
         ` : '<div class="info-text" style="margin-top: 12px;">This pipeline has no defined variables</div>'}
     </div>
@@ -469,6 +511,10 @@ export class RunPipelinePanel {
 
         function cancel() {
             vscode.postMessage({ command: 'cancel' });
+        }
+
+        function upgradePrompt(featureName) {
+            vscode.postMessage({ command: 'upgradePrompt', featureName: featureName });
         }
 
         function runPipeline() {

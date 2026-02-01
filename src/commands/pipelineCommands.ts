@@ -13,6 +13,7 @@ import { PipelineEditorPanel } from '../webviews/pipelineEditorPanel';
 import { TaskAssistantPanel } from '../webviews/taskAssistantPanel';
 import { TaskService } from '../services/taskService';
 import { PipelineCodeLensProvider } from '../providers/pipelineCodeLensProvider';
+import { LicenseManager } from '../services/licenseManager';
 
 /**
  * Pipeline command handlers
@@ -108,6 +109,10 @@ export class PipelineCommands {
      * Open Task Assistant panel
      */
     private async openTaskAssistant(): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Task Assistant');
+            return;
+        }
         try {
             const panel = TaskAssistantPanel.show(this.taskService);
             vscode.window.showInformationMessage('Task Assistant opened. Click on a task to configure and add it to your pipeline.');
@@ -206,6 +211,10 @@ export class PipelineCommands {
      * Cancel a running pipeline
      */
     private async cancelRun(run: PipelineRun): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Cancel Run');
+            return;
+        }
         const confirmation = await vscode.window.showWarningMessage(
             `Cancel run ${run.buildNumber}?`,
             { modal: true },
@@ -240,6 +249,10 @@ export class PipelineCommands {
      * Retry a failed run
      */
     private async retryRun(run: PipelineRun): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Retry Run');
+            return;
+        }
         try {
             await vscode.window.withProgress(
                 {
@@ -342,6 +355,10 @@ export class PipelineCommands {
      * Download artifacts for a run
      */
     private async downloadArtifacts(run: PipelineRun): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Download Artifacts');
+            return;
+        }
         try {
             const artifacts = await this.client.getArtifacts(run.id);
 
@@ -409,6 +426,10 @@ export class PipelineCommands {
      * Create new pipeline with wizard
      */
     private async createPipeline(): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Create Pipeline');
+            return;
+        }
         try {
             // Step 1: Get repositories
             const repositories = await vscode.window.withProgress(
@@ -649,6 +670,10 @@ export class PipelineCommands {
      * Rename/move pipeline
      */
     private async renamePipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Rename/Move Pipeline');
+            return;
+        }
         try {
             const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
 
@@ -672,6 +697,10 @@ export class PipelineCommands {
      * Delete pipeline
      */
     private async deletePipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Delete Pipeline');
+            return;
+        }
         try {
             const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
 
@@ -715,6 +744,10 @@ export class PipelineCommands {
      * Edit pipeline (opens YAML file in editor with save to repository functionality)
      */
     private async editPipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Edit Pipeline YAML');
+            return;
+        }
         try {
             const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
 

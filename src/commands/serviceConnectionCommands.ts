@@ -3,6 +3,7 @@ import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { ServiceEndpoint } from '../models/types';
 import { ServiceConnectionsTreeProvider } from '../views/serviceConnectionsTreeView';
 import { ServiceConnectionPanel } from '../webviews/serviceConnectionPanel';
+import { LicenseManager } from '../services/licenseManager';
 
 export class ServiceConnectionCommands {
     constructor(
@@ -38,6 +39,10 @@ export class ServiceConnectionCommands {
     }
 
     private async createConnection(): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Create Service Connection');
+            return;
+        }
         const type = await vscode.window.showQuickPick([
             { label: 'Azure Resource Manager', value: 'AzureRM' },
             { label: 'Generic', value: 'Generic' },
@@ -146,6 +151,10 @@ export class ServiceConnectionCommands {
     }
 
     private async editConnection(connection: ServiceEndpoint): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Edit Service Connection');
+            return;
+        }
         const newName = await vscode.window.showInputBox({
             prompt: 'Enter new name',
             value: connection.name
@@ -179,6 +188,10 @@ export class ServiceConnectionCommands {
     }
 
     private async deleteConnection(connection: ServiceEndpoint): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Delete Service Connection');
+            return;
+        }
         const confirm = await vscode.window.showWarningMessage(
             `Delete service connection '${connection.name}'?`,
             { modal: true },

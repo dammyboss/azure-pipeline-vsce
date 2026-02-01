@@ -11,6 +11,7 @@ import { PipelineCommands } from './commands/pipelineCommands';
 import { ServiceConnectionCommands } from './commands/serviceConnectionCommands';
 import { PipelineCodeLensProvider } from './providers/pipelineCodeLensProvider';
 import { WhatsNewPanel } from './webviews/whatsNewPanel';
+import { LicenseManager } from './services/licenseManager';
 
 let authProvider: AzureDevOpsAuthProvider;
 let client: AzureDevOpsClient;
@@ -30,6 +31,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Register authentication listeners
     context.subscriptions.push(...authProvider.registerListeners());
+
+    // Initialize license manager
+    const licenseManager = LicenseManager.getInstance(context.secrets);
+    await licenseManager.activate();
 
     // Initialize API client
     client = new AzureDevOpsClient(authProvider);
@@ -115,6 +120,9 @@ export async function activate(context: vscode.ExtensionContext) {
             pipelinesProvider.refresh();
             runsProvider.refresh();
             updateStatusBar();
+        }),
+        vscode.commands.registerCommand('azurePipelines.enterLicenseKey', async () => {
+            await licenseManager.enterLicenseKey();
         })
     );
 
