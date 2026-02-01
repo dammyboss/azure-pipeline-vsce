@@ -51,15 +51,16 @@ export class RunPipelinePanel {
     private async initialize() {
         try {
             // Fetch required data
-            const [branches, variables] = await Promise.all([
+            const [branches, variables, pipelineConfig] = await Promise.all([
                 this.fetchBranches(),
-                this.fetchVariables()
+                this.fetchVariables(),
+                this.client.getPipelineConfiguration(this.pipeline.id).catch(() => null)
             ]);
 
             // Get pipeline YAML to extract stages
             const stages = await this.fetchStages();
 
-            this.panel.webview.html = this.getHtmlContent(branches, variables, stages);
+            this.panel.webview.html = this.getHtmlContent(branches, variables, stages, pipelineConfig);
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to load pipeline data: ${error}`);
             this.panel.dispose();
@@ -144,10 +145,12 @@ export class RunPipelinePanel {
         }
     }
 
-    private getHtmlContent(branches: string[], variables: Record<string, any>, stages: string[]): string {
+    private getHtmlContent(branches: string[], variables: Record<string, any>, stages: string[], pipelineConfig: { repositoryName: string; yamlPath: string } | null): string {
         const defaultBranch = this.sourceBranch?.replace('refs/heads/', '') || branches[0] || 'main';
         const hasVariables = Object.keys(variables).length > 0;
         const hasStages = stages.length > 0;
+        const repoName = pipelineConfig?.repositoryName || '';
+        const yamlPath = pipelineConfig?.yamlPath?.replace(/^\//, '') || '';
 
         return `<!DOCTYPE html>
 <html>
@@ -163,6 +166,9 @@ export class RunPipelinePanel {
             padding: 20px;
         }
         .header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
             margin-bottom: 30px;
             padding-bottom: 20px;
             border-bottom: 1px solid var(--vscode-panel-border);
@@ -175,6 +181,23 @@ export class RunPipelinePanel {
         .subtitle {
             font-size: 14px;
             color: var(--vscode-descriptionForeground);
+        }
+        .header-path {
+            font-size: 12px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-left: 16px;
+        }
+        .path-repo {
+            color: var(--vscode-foreground);
+            font-weight: 500;
+        }
+        .path-separator {
+            color: var(--vscode-descriptionForeground);
+            margin: 0 2px;
+        }
+        .path-file {
+            color: var(--vscode-textLink-foreground, #3794ff);
         }
         .section {
             margin-bottom: 30px;
@@ -336,8 +359,11 @@ export class RunPipelinePanel {
 </head>
 <body>
     <div class="header">
-        <div class="title">Run pipeline</div>
-        <div class="subtitle">Select parameters below and manually run the pipeline</div>
+        <div class="header-left">
+            <div class="title">Run pipeline</div>
+            <div class="subtitle">Select parameters below and manually run the pipeline</div>
+        </div>
+        ${repoName && yamlPath ? `<div class="header-path"><span class="path-repo">${repoName}</span><span class="path-separator">/</span><span class="path-file">${yamlPath}</span></div>` : ''}
     </div>
 
     <div class="section">

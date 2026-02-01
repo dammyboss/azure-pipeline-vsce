@@ -2475,7 +2475,7 @@ export class PipelineEditorPanel {
             </svg>
             <span class="info-value repo-name">${this._pipelineConfig?.repositoryName || 'Loading...'}</span>
             <span class="info-separator">/</span>
-            <span class="info-value file-name">${this._pipelineConfig?.yamlPath?.split('/').pop() || 'Loading...'}</span>
+            <span class="info-value file-name">${this._pipelineConfig?.yamlPath?.replace(/^\//, '') || 'Loading...'}</span>
         </div>
         <button id="showAssistantBtn" class="show-assistant-btn" title="Show task assistant">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
