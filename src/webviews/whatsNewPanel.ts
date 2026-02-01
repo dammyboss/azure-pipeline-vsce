@@ -650,11 +650,19 @@ export class WhatsNewPanel {
                 .footer-link svg, .footer-link-img {
                     width: 16px;
                     height: 16px;
-                    transition: transform 0.3s;
+                    transition: transform 0.3s, filter 0.3s;
+                }
+
+                .footer-link-img {
+                    filter: invert(1) brightness(0.522);
                 }
 
                 .footer-link:hover svg, .footer-link:hover .footer-link-img {
                     transform: rotate(12deg);
+                }
+
+                .footer-link:hover .footer-link-img {
+                    filter: invert(1) brightness(0.8);
                 }
 
                 .footer-divider {
