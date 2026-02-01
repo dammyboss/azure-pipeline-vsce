@@ -107,7 +107,7 @@ export class WhatsNewPanel {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src https://img.icons8.com; script-src 'nonce-${nonce}';">
             <title>What's New - Azure DevOps Pipelines</title>
             <style>
                 /* Reset & Base */
@@ -647,13 +647,13 @@ export class WhatsNewPanel {
                     transform: scale(1.05);
                 }
 
-                .footer-link svg {
+                .footer-link svg, .footer-link-img {
                     width: 16px;
                     height: 16px;
                     transition: transform 0.3s;
                 }
 
-                .footer-link:hover svg {
+                .footer-link:hover svg, .footer-link:hover .footer-link-img {
                     transform: rotate(12deg);
                 }
 
@@ -916,23 +916,17 @@ export class WhatsNewPanel {
                     <div class="modal-footer">
                         <div class="footer-links">
                             <button class="footer-link" onclick="openUrl('https://github.com/dammyboss/azure-pipeline-vsce')">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
-                                </svg>
+                                <img src="https://img.icons8.com/fluency-systems-regular/48/github.png" alt="GitHub" class="footer-link-img">
                                 GitHub
                             </button>
                             <span class="footer-divider">&bull;</span>
                             <button class="footer-link" onclick="openUrl('https://github.com/dammyboss/azure-pipeline-vsce/issues')">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-                                </svg>
+                                <img src="https://img.icons8.com/fluency-systems-regular/48/topic.png" alt="Report Issues" class="footer-link-img">
                                 Report Issues
                             </button>
                             <span class="footer-divider">&bull;</span>
                             <button class="footer-link" onclick="openUrl('https://github.com/dammyboss/azure-pipeline-vsce/blob/main/CHANGELOG.md')">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                </svg>
+                                <img src="https://img.icons8.com/ios/50/document--v1.png" alt="Full Changelog" class="footer-link-img">
                                 Full Changelog
                             </button>
                         </div>
