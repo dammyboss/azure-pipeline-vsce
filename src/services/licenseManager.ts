@@ -99,6 +99,13 @@ export class LicenseManager {
         }
     }
 
+    async clearLicense(): Promise<void> {
+        await this.secretStorage.delete(LICENSE_KEY_STORE);
+        await this.secretStorage.delete(CACHE_KEY);
+        this.status = null;
+        vscode.window.showInformationMessage('License cleared. Pro features are now locked.');
+    }
+
     showUpgradePrompt(featureName: string): void {
         vscode.window.showInformationMessage(
             `"${featureName}" is a Pro feature. Upgrade to unlock.`,

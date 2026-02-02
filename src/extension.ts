@@ -123,6 +123,9 @@ export async function activate(context: vscode.ExtensionContext) {
         }),
         vscode.commands.registerCommand('azurePipelines.enterLicenseKey', async () => {
             await licenseManager.enterLicenseKey();
+        }),
+        vscode.commands.registerCommand('azurePipelines.clearLicense', async () => {
+            await licenseManager.clearLicense();
         })
     );
 

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { Pipeline, RuntimeParameter } from '../models/types';
+import { LicenseManager } from '../services/licenseManager';
 
 /**
  * Lightweight modal for running pipelines
@@ -91,7 +92,8 @@ export class RunPipelineModal {
                     variables,
                     stages,
                     runtimeParameters,
-                    defaultBranch: this.sourceBranch?.replace('refs/heads/', '') || branches[0] || 'main'
+                    defaultBranch: this.sourceBranch?.replace('refs/heads/', '') || branches[0] || 'main',
+                    isPremium: LicenseManager.getInstance().isPremium()
                 }
             });
         } catch (error) {
@@ -259,6 +261,18 @@ export class RunPipelineModal {
 
     private async handleRunPipeline(data: any) {
         try {
+            // Check if advanced options are being used (Pro feature)
+            const hasAdvancedOptions =
+                (data.variables && Object.keys(data.variables).length > 0) ||
+                (data.stagesToRun && data.stagesToRun.length > 0) ||
+                (data.templateParameters && Object.keys(data.templateParameters).length > 0) ||
+                data.commit;
+
+            if (hasAdvancedOptions && !LicenseManager.getInstance().isPremium()) {
+                LicenseManager.getInstance().showUpgradePrompt('Advanced Run Options');
+                return;
+            }
+
             const options: any = { branch: data.branch };
 
             if (data.templateParameters && Object.keys(data.templateParameters).length > 0) {
@@ -271,7 +285,7 @@ export class RunPipelineModal {
 
             if (data.stagesToRun && data.stagesToRun.length > 0) {
                 const allStages = data.allStages || [];
-                const stagesToSkip = allStages.filter((s: string) => !data.stagesToRun.includes(s));
+                const stagesToSkip = allStages.filter((s: string) => !data.stagesToSkip.includes(s));
                 if (stagesToSkip.length > 0) {
                     options.stagesToSkip = stagesToSkip;
                 }
@@ -797,7 +811,7 @@ export class RunPipelineModal {
         }
 
         function renderForm(data) {
-            const { branches, variables, stages, runtimeParameters, defaultBranch, pipeline } = data;
+            const { branches, variables, stages, runtimeParameters, defaultBranch, pipeline, isPremium } = data;
 
             // Debug logging for variables (same as runDetailsPanel)
             console.log('[Azure Pipelines] Variables received in form (already filtered for allowOverride):', Object.keys(variables || {}));
@@ -817,13 +831,20 @@ export class RunPipelineModal {
                             ).join('')}
                         </select>
                     </div>
-                    <div class="modal-form-group">
-                        <label class="modal-label">Commit</label>
-                        <input type="text" class="modal-input" id="modalCommitInput" placeholder="Leave empty to use latest commit">
-                    </div>
+                    \${isPremium ? \`
+                        <div class="modal-form-group">
+                            <label class="modal-label">Commit</label>
+                            <input type="text" class="modal-input" id="modalCommitInput" placeholder="Leave empty to use latest commit">
+                        </div>
+                    \` : \`
+                        <div class="modal-locked-feature">
+                            <span class="modal-lock-icon">🔒</span>
+                            <span>Commit selection is a <strong>Pro</strong> feature. <button class="modal-upgrade-link" onclick="upgradePrompt('Commit Selection')">Upgrade to unlock</button></span>
+                        </div>
+                    \`}
                 </div>
 
-                \${runtimeParameters && runtimeParameters.length > 0 ? \`
+                \${runtimeParameters && runtimeParameters.length > 0 && isPremium ? \`
                     <div class="modal-divider"></div>
                     <div class="modal-section">
                         <div class="modal-section-title">Parameters</div>
@@ -832,6 +853,15 @@ export class RunPipelineModal {
                         </div>
                         \${runtimeParameters.map((param, index) => renderParameterInput(param, index)).join('')}
                     </div>
+                \` : runtimeParameters && runtimeParameters.length > 0 ? \`
+                    <div class="modal-divider"></div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Parameters</div>
+                        <div class="modal-locked-feature">
+                            <span class="modal-lock-icon">🔒</span>
+                            <span>Runtime parameters are a <strong>Pro</strong> feature. <button class="modal-upgrade-link" onclick="upgradePrompt('Runtime Parameters')">Upgrade to unlock</button></span>
+                        </div>
+                    </div>
                 \` : ''}
 
                 <div class="modal-divider"></div>
@@ -839,13 +869,13 @@ export class RunPipelineModal {
                 <div class="modal-section">
                     <div class="modal-section-title">Advanced options</div>
 
-                    <div class="modal-expandable-section" id="modalStagesSection">
-                        <div class="modal-expandable-header" onclick="toggleModalSection(this)">
-                            <div class="modal-expandable-title">Stages to run</div>
-                            <div class="modal-expandable-arrow">▶</div>
-                        </div>
-                        <div class="modal-expandable-content">
-                            \${stages && stages.length > 0 ? \`
+                    \${stages && stages.length > 0 && isPremium ? \`
+                        <div class="modal-expandable-section" id="modalStagesSection">
+                            <div class="modal-expandable-header" onclick="toggleModalSection(this)">
+                                <div class="modal-expandable-title">Stages to run</div>
+                                <div class="modal-expandable-arrow">▶</div>
+                            </div>
+                            <div class="modal-expandable-content">
                                 <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-bottom: 12px;">
                                     Deselect stages you want to skip for this run
                                 </div>
@@ -872,14 +902,19 @@ export class RunPipelineModal {
                                         </div>
                                     \`).join('')}
                                 </div>
-                            \` : \`
-                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px;">
-                                    <div style="color: var(--vscode-charts-blue); font-size: 18px;">ℹ</div>
-                                    <div style="font-size: 13px;">Configuration is only available for multi-stage pipelines.</div>
-                                </div>
-                            \`}
+                            </div>
                         </div>
-                    </div>
+                    \` : stages && stages.length > 0 ? \`
+                        <div class="modal-locked-feature">
+                            <span class="modal-lock-icon">🔒</span>
+                            <span>Stage selection is a <strong>Pro</strong> feature. <button class="modal-upgrade-link" onclick="upgradePrompt('Stage Selection')">Upgrade to unlock</button></span>
+                        </div>
+                    \` : \`
+                        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--vscode-editor-inactiveSelectionBackground); border-radius: 4px;">
+                            <div style="color: var(--vscode-charts-blue); font-size: 18px;">ℹ</div>
+                            <div style="font-size: 13px;">Configuration is only available for multi-stage pipelines.</div>
+                        </div>
+                    \`}
 
                     <div class="modal-expandable-section">
                         <div class="modal-expandable-header" onclick="toggleModalSection(this)">
@@ -891,7 +926,7 @@ export class RunPipelineModal {
                         </div>
                     </div>
 
-                    \${Object.keys(variables || {}).length > 0 ? \`
+                    \${Object.keys(variables || {}).length > 0 && isPremium ? \`
                         <div class="modal-expandable-section" id="modalVariablesSection">
                             <div class="modal-expandable-header" onclick="toggleModalSection(this)">
                                 <div class="modal-expandable-title">Variables</div>
@@ -907,6 +942,11 @@ export class RunPipelineModal {
                                     \`).join('')}
                                 </div>
                             </div>
+                        </div>
+                    \` : Object.keys(variables || {}).length > 0 ? \`
+                        <div class="modal-locked-feature" style="margin-top: 12px;">
+                            <span class="modal-lock-icon">🔒</span>
+                            <span>Variable overrides are a <strong>Pro</strong> feature. <button class="modal-upgrade-link" onclick="upgradePrompt('Variable Overrides')">Upgrade to unlock</button></span>
                         </div>
                     \` : ''}
                 </div>

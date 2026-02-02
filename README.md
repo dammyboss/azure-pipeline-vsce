@@ -71,7 +71,7 @@ One-time payment. Includes all future updates. No subscription required.
 
 ### How to get your license
 
-1. [Purchase a Pro license on Gumroad](https://devopswithdami.gumroad.com/l/ado-pipeline-pro)
+1. [Purchase a Pro license on Gumroad](https://wasiu40.gumroad.com/l/ado-pipeline-pro)
 2. You'll receive your license key via email
 3. In VS Code, open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
 4. Run **Azure Pipelines: Enter License Key**

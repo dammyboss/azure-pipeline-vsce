@@ -140,6 +140,10 @@ export class PipelineCommands {
      * Run a pipeline - shows inline modal form
      */
     private async runPipeline(pipelineOrTreeItem: Pipeline | any): Promise<void> {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Run Pipeline');
+            return;
+        }
         try {
             const pipeline: Pipeline = (pipelineOrTreeItem as any).pipeline || pipelineOrTreeItem;
 

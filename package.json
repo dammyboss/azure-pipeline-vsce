@@ -250,6 +250,12 @@
         "title": "Enter License Key",
         "category": "Azure Pipelines",
         "icon": "$(key)"
+      },
+      {
+        "command": "azurePipelines.clearLicense",
+        "title": "Clear License (for testing)",
+        "category": "Azure Pipelines",
+        "icon": "$(trash)"
       }
     ],
     "menus": {

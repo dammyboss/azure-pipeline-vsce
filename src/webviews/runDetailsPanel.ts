@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { AzureDevOpsClient } from '../api/azureDevOpsClient';
 import { PipelineRun, TimelineRecord } from '../models/types';
 import { PipelineEditorPanel } from './pipelineEditorPanel';
+import { LicenseManager } from '../services/licenseManager';
 
 export class RunDetailsPanel {
     private static currentPanel: RunDetailsPanel | undefined;
@@ -176,6 +177,10 @@ export class RunDetailsPanel {
     }
 
     private async runNewPipeline() {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Run Pipeline');
+            return;
+        }
         try {
             const pipelineId = this.run.pipeline?.id || this.run.definition?.id;
             if (!pipelineId) {
@@ -525,6 +530,10 @@ export class RunDetailsPanel {
     }
 
     private async editPipelineYaml() {
+        if (!LicenseManager.getInstance().isPremium()) {
+            LicenseManager.getInstance().showUpgradePrompt('Edit Pipeline YAML');
+            return;
+        }
         try {
             const pipelineId = this.run.pipeline?.id || this.run.definition?.id;
             const pipelineName = this.run.pipeline?.name || this.run.definition?.name || 'Pipeline';
