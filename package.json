@@ -2,7 +2,7 @@
   "name": "azure-devops-pipelines",
   "displayName": "Azure DevOps Pipelines",
   "description": "Complete Azure DevOps Pipeline management directly from VSCode",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "Damilola",
   "icon": "resources/icons/extension-icon.png",
   "repository": {
@@ -449,7 +449,7 @@
         },
         "azurePipelines.licenseApiUrl": {
           "type": "string",
-          "default": "https://license.azure-pipeline-vsce.vercel.app",
+          "default": "https://ado-pipeline-vsce-payment.vercel.app",
           "description": "License validation API endpoint (internal use)"
         }
       }

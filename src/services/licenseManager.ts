@@ -32,7 +32,7 @@ export class LicenseManager {
 
     private getApiUrl(): string {
         const config = vscode.workspace.getConfiguration('azurePipelines');
-        return config.get<string>('licenseApiUrl', 'https://license.azure-pipeline-vsce.vercel.app');
+        return config.get<string>('licenseApiUrl', 'https://ado-pipeline-vsce-payment.vercel.app');
     }
 
     async activate(): Promise<void> {
