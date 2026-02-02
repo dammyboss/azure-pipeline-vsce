@@ -37,7 +37,7 @@ export class LicenseManager {
 
     async activate(): Promise<void> {
         await this.loadCachedStatus();
-        this.refreshInBackground();
+        await this.refreshInBackground();
     }
 
     /**
