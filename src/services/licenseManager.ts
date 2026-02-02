@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import axios from 'axios';
 
 export interface LicenseStatus {
     isPremium: boolean;
@@ -114,18 +115,14 @@ export class LicenseManager {
 
     private async validateKey(key: string): Promise<boolean> {
         try {
-            const response = await fetch(`${this.getApiUrl()}/validate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key })
-            });
+            const response = await axios.post(`${this.getApiUrl()}/api/validate`, { key });
 
-            if (!response.ok) {
+            if (response.status !== 200) {
                 this.updateStatus({ isPremium: false, globalFreeMode: false });
                 return false;
             }
 
-            const data = await response.json() as { valid?: boolean; globalFreeMode?: boolean; expiresAt?: string };
+            const data = response.data as { valid?: boolean; globalFreeMode?: boolean; expiresAt?: string };
             this.updateStatus({
                 isPremium: data.valid === true,
                 globalFreeMode: data.globalFreeMode || false,
@@ -140,10 +137,10 @@ export class LicenseManager {
     private async refreshInBackground(): Promise<void> {
         try {
             const apiUrl = this.getApiUrl();
-            const statusResponse = await fetch(`${apiUrl}/status`);
+            const statusResponse = await axios.get(`${apiUrl}/api/status`);
 
-            if (statusResponse.ok) {
-                const data = await statusResponse.json() as { globalFreeMode?: boolean };
+            if (statusResponse.status === 200) {
+                const data = statusResponse.data as { globalFreeMode?: boolean };
                 if (this.status) {
                     this.status.globalFreeMode = data.globalFreeMode !== false;
                     this.status.cachedAt = new Date().toISOString();
