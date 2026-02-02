@@ -43,6 +43,44 @@ Manage your Azure DevOps Pipelines and Service Connections directly from Visual 
 - Quick access to all pipeline operations
 - Detailed run information in editor panels
 
+## Pro
+
+Unlock the full power of Azure DevOps Pipelines for VS Code with a one-time Pro license.
+
+### What's included
+
+| Feature | Free | Pro |
+|---------|:----:|:---:|
+| Sign in & browse pipelines | ✅ | ✅ |
+| View run details, logs & timeline | ✅ | ✅ |
+| Run pipeline (branch selection) | ✅ | ✅ |
+| Open pipelines & runs in browser | ✅ | ✅ |
+| Status bar & notifications | ✅ | ✅ |
+| **Edit Pipeline YAML** | — | ✅ |
+| **Task Assistant** | — | ✅ |
+| **Advanced run options** (variables, stages, commit) | — | ✅ |
+| **Cancel & retry runs** | — | ✅ |
+| **Download artifacts** | — | ✅ |
+| **Create, rename & delete pipelines** | — | ✅ |
+| **Create, edit & delete service connections** | — | ✅ |
+
+### Pricing
+
+**$9.99 — Lifetime license**
+One-time payment. Includes all future updates. No subscription required.
+
+### How to get your license
+
+1. [Sponsor the project on GitHub](https://github.com/sponsors/dammyboss) and select the **Pro License** tier
+2. You'll receive your license key via GitHub
+3. In VS Code, open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
+4. Run **Azure Pipelines: Enter License Key**
+5. Paste your key and press Enter — Pro features unlock immediately
+
+> Already have a key? Just run `Azure Pipelines: Enter License Key` from the Command Palette at any time.
+
+---
+
 ## Getting Started
 
 ### Installation
