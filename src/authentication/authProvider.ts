@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import axios from 'axios';
 
 /**
  * Authentication Provider for Azure DevOps using Microsoft Authentication
@@ -54,20 +55,85 @@ export class AzureDevOpsAuthProvider {
                 return this.session;
             }
 
-            // Step 3: Show command palette to select tenant
-            const tenantId = await vscode.window.showInputBox({
-                prompt: 'Enter Tenant ID (you can find this in Azure Portal)',
-                placeHolder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-                validateInput: (value) => {
-                    if (!value || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
-                        return 'Please enter a valid tenant ID (GUID format)';
-                    }
-                    return null;
-                }
+            // Step 3: Fetch and show available tenants with loading indicator
+            const tenants = await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: "Azure DevOps",
+                cancellable: false
+            }, async (progress) => {
+                progress.report({ message: "Discovering available tenants..." });
+                return await this.fetchAvailableTenants(session.accessToken);
             });
 
-            if (!tenantId) {
-                throw new Error('Tenant selection cancelled');
+            let tenantId: string | undefined;
+
+            if (tenants.length > 0) {
+                // Show tenant picker with friendly names
+                interface TenantQuickPickItem extends vscode.QuickPickItem {
+                    tenantId: string;
+                }
+
+                const tenantItems: TenantQuickPickItem[] = tenants.map(tenant => ({
+                    label: tenant.displayName || tenant.tenantId,
+                    description: tenant.defaultDomain || tenant.tenantId,
+                    detail: `Tenant ID: ${tenant.tenantId}`,
+                    tenantId: tenant.tenantId
+                }));
+
+                // Add manual entry option at the end
+                tenantItems.push({
+                    label: '$(edit) Enter Tenant ID Manually',
+                    description: 'If your tenant is not listed above',
+                    detail: 'Manually enter a tenant ID (GUID format)',
+                    tenantId: 'manual'
+                });
+
+                const selectedTenant = await vscode.window.showQuickPick(tenantItems, {
+                    placeHolder: 'Select the tenant containing your Azure DevOps organization',
+                    matchOnDescription: true,
+                    matchOnDetail: true
+                });
+
+                if (!selectedTenant) {
+                    throw new Error('Tenant selection cancelled');
+                }
+
+                if (selectedTenant.tenantId === 'manual') {
+                    // Fall back to manual entry
+                    const manualTenantId = await vscode.window.showInputBox({
+                        prompt: 'Enter Tenant ID (you can find this in Azure Portal)',
+                        placeHolder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+                        validateInput: (value) => {
+                            if (!value || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+                                return 'Please enter a valid tenant ID (GUID format)';
+                            }
+                            return null;
+                        }
+                    });
+
+                    if (!manualTenantId) {
+                        throw new Error('Tenant selection cancelled');
+                    }
+                    tenantId = manualTenantId;
+                } else {
+                    tenantId = selectedTenant.tenantId;
+                }
+            } else {
+                // Fallback to manual entry if auto-detection failed
+                tenantId = await vscode.window.showInputBox({
+                    prompt: 'Enter Tenant ID (you can find this in Azure Portal)',
+                    placeHolder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+                    validateInput: (value) => {
+                        if (!value || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+                            return 'Please enter a valid tenant ID (GUID format)';
+                        }
+                        return null;
+                    }
+                });
+
+                if (!tenantId) {
+                    throw new Error('Tenant selection cancelled');
+                }
             }
 
             // Step 4: Re-authenticate with selected tenant
@@ -182,6 +248,89 @@ export class AzureDevOpsAuthProvider {
             email: session.account.id,
             id: session.account.id
         };
+    }
+
+    /**
+     * Fetch all available tenants the user has access to
+     * Uses Microsoft Graph API and Azure Management API for comprehensive tenant discovery
+     */
+    private async fetchAvailableTenants(accessToken: string): Promise<Array<{tenantId: string, displayName?: string, defaultDomain?: string}>> {
+        try {
+            // First, get a Graph API token to query tenant information
+            const graphSession = await vscode.authentication.getSession(
+                'microsoft',
+                ['https://graph.microsoft.com/.default'],
+                { createIfNone: false, silent: true }
+            );
+
+            if (!graphSession) {
+                throw new Error('Could not get Graph API session');
+            }
+
+            // Use Microsoft Graph API to list organizations the user has access to
+            const orgResponse = await axios.get('https://graph.microsoft.com/v1.0/organization', {
+                headers: {
+                    'Authorization': `Bearer ${graphSession.accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const orgs = orgResponse.data.value || [];
+
+            // Also try to get Azure Management token to list all tenants
+            let azureTenants: any[] = [];
+            try {
+                const azureSession = await vscode.authentication.getSession(
+                    'microsoft',
+                    ['https://management.azure.com/.default'],
+                    { createIfNone: false, silent: true }
+                );
+
+                if (azureSession) {
+                    const tenantsResponse = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {
+                        headers: {
+                            'Authorization': `Bearer ${azureSession.accessToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    azureTenants = tenantsResponse.data.value || [];
+                }
+            } catch (azureError) {
+                console.log('Could not fetch Azure Management tenants, using Graph API only');
+            }
+
+            // Merge and deduplicate tenants
+            const tenantMap = new Map<string, {tenantId: string, displayName?: string, defaultDomain?: string}>();
+
+            // Add from Graph API (home tenant)
+            orgs.forEach((org: any) => {
+                tenantMap.set(org.id, {
+                    tenantId: org.id,
+                    displayName: org.displayName,
+                    defaultDomain: org.verifiedDomains?.find((d: any) => d.isDefault)?.name
+                });
+            });
+
+            // Add from Azure Management API (all accessible tenants)
+            azureTenants.forEach((tenant: any) => {
+                if (!tenantMap.has(tenant.tenantId)) {
+                    tenantMap.set(tenant.tenantId, {
+                        tenantId: tenant.tenantId,
+                        displayName: tenant.displayName,
+                        defaultDomain: tenant.domains?.[0] || tenant.defaultDomain
+                    });
+                }
+            });
+
+            const tenants = Array.from(tenantMap.values());
+            console.log(`Found ${tenants.length} available tenants`);
+
+            return tenants;
+        } catch (error: any) {
+            console.error('Failed to fetch available tenants:', error);
+            // Return empty array to fallback to manual entry
+            return [];
+        }
     }
 
     /**
