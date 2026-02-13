@@ -9,6 +9,10 @@
 
 Manage your Azure DevOps Pipelines and Service Connections directly from Visual Studio Code. View, run, monitor, and control your CI/CD pipelines without leaving your editor.
 
+## Demo
+
+![Demo](./media/demo.gif)
+
 ## Features
 
 ### Secure Authentication

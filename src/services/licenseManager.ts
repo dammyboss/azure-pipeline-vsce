@@ -43,15 +43,10 @@ export class LicenseManager {
 
     /**
      * Returns true if the user has access to all features.
-     * True when: devMode is on, globalFreeMode is on, or a valid premium license is cached within the grace period.
+     * True when: globalFreeMode is on, or a valid premium license is cached within the grace period.
      * Defaults to true when no status exists (everything stays free until a backend is deployed and flips globalFreeMode off).
      */
     isPremium(): boolean {
-        const config = vscode.workspace.getConfiguration('azurePipelines');
-        if (config.get<boolean>('devMode', false)) {
-            return true;
-        }
-
         if (!this.status) {
             return true;
         }
